@@ -1,0 +1,91 @@
+# ---------------------
+# Entorno y Variables
+# ---------------------
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+
+# ---------------------
+# Python & Backend (FastAPI)
+# ---------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+# Entornos Virtuales
+venv/
+.venv/
+env/
+.env_python/
+ENV/
+
+# ---------------------
+# Node & Frontend (Vue.js)
+# ---------------------
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+
+# ---------------------
+# Bases de datos y archivos locales
+# ---------------------
+*.db
+*.sqlite3
+postgres_data/
+db_data/
+
+# ---------------------
+# Archivos subidos o temporales
+# ---------------------
+uploads/
+images/
+*.log
+
+# ---------------------
+# IDEs y SO
+# ---------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ---------------------
+# Archivos markdown temporales (opcional)
+# ---------------------
+# Si deseas ignorar los archivos .md que usas para pruebas/logs, descomenta la siguiente línea:
+# *.md
+# !README.md

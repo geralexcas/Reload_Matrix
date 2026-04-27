@@ -1,0 +1,39 @@
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
+from typing import Optional
+
+from app.models.sql.partners import Partner
+from app.models.sql.inventory import Product
+from app.models.sql.invoicing import Invoice
+from app.models.sql.repair import RepairOrder
+from app.models.sql.user import User
+from app.schemas.dashboard import DashboardStats
+from app.core.database import get_db
+from app.api.v1.deps import get_current_active_user
+
+router = APIRouter()
+
+@router.get("/stats", response_model=DashboardStats)
+def get_dashboard_stats(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get dashboard statistics for a specific company.
+    """
+    # Verify user belongs to company
+    from app.api.v1.deps import verify_company_membership
+    verify_company_membership(company_id, current_user, db)
+
+    partners_count = db.query(Partner).filter(Partner.company_id == company_id).count()
+    products_count = db.query(Product).filter(Product.company_id == company_id).count()
+    invoices_count = db.query(Invoice).filter(Invoice.company_id == company_id).count()
+    repairs_count = db.query(RepairOrder).filter(RepairOrder.company_id == company_id).count()
+
+    return DashboardStats(
+        partners=partners_count,
+        products=products_count,
+        invoices=invoices_count,
+        repairs=repairs_count
+    )
