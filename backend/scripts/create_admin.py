@@ -27,29 +27,13 @@ backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, backend_dir)
 
 
-def get_db_session(use_sqlite=False):
-    """Obtener sesión de base de datos (SQLite o PostgreSQL)"""
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    from app.core.database import Base
-
-    if use_sqlite:
-        sqlite_path = os.path.join(backend_dir, "business.db")
-        engine = create_engine(
-            f"sqlite:///{sqlite_path}", connect_args={"check_same_thread": False}
-        )
-    else:
-        # PostgreSQL desde host
-        db_url = os.getenv(
-            "DATABASE_URL", "postgresql://user:password@localhost:5434/business_db"
-        )
-        # Reemplazar hostname Docker por localhost
-        db_url = db_url.replace("@db:", "@localhost:")
-        db_url = db_url.replace(":5432", ":5434")
-        engine = create_engine(db_url)
-
+def get_db_session():
+    """Obtener sesión de base de datos (PostgreSQL)"""
+    from app.core.database import SessionLocal, engine, Base
+    
+    # Asegurar que las tablas existan
     Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    
     return SessionLocal()
 
 
@@ -124,11 +108,10 @@ def main():
     parser.add_argument("--password", default="Admin@123456")
     parser.add_argument("--full-name", default="Administrador Sistema")
     parser.add_argument("--company-id", type=int, default=None)
-    parser.add_argument("--sqlite", action="store_true")
     parser.add_argument("--verify", action="store_true")
 
     args = parser.parse_args()
-    db = get_db_session(use_sqlite=args.sqlite)
+    db = get_db_session()
 
     try:
         user = create_admin_user(
