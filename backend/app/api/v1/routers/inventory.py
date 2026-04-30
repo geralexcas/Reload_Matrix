@@ -142,9 +142,12 @@ def delete_product(
         raise HTTPException(status_code=404, detail="Company not found")
 
     service = inventory_service.InventoryService(db)
-    success = service.delete_product(product_id, company_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Product not found")
+    try:
+        success = service.delete_product(product_id, company_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Product not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return None
 
 

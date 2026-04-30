@@ -222,9 +222,16 @@ class InventoryService:
     def delete_product(self, product_id: int, company_id: int) -> bool:
         db_product = self.get_product_by_id(product_id, company_id)
         if db_product:
-            self.db.delete(db_product)
-            self.db.commit()
-            return True
+            from sqlalchemy.exc import IntegrityError
+            try:
+                self.db.delete(db_product)
+                self.db.commit()
+                return True
+            except IntegrityError:
+                self.db.rollback()
+                db_product.is_active = False
+                self.db.commit()
+                raise ValueError("El producto tiene movimientos históricos registrados (facturas, compras o asientos). Por seguridad contable, se ha marcado como INACTIVO en lugar de eliminarse.")
         return False
 
     def adjust_stock_level(
