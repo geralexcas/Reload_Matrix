@@ -1,136 +1,146 @@
 <template>
   <div class="purchases-container">
-    <div class="page-header">
-      <h1 class="page-title">Compras</h1>
-      <button class="btn btn-primary" @click="$router.push('/purchases/new')">
-        <span class="btn-icon">+</span>
-        Nueva Compra
-      </button>
+    <div v-if="!showForm">
+      <div class="page-header">
+        <h1 class="page-title">Compras</h1>
+        <button class="btn btn-primary" @click="openCreateForm">
+          <span class="btn-icon">+</span>
+          Nueva Compra
+        </button>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Compras</div>
+          <div class="stat-value">{{ statistics?.total_purchases || 0 }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Monto Total</div>
+          <div class="stat-value">${{ formatNumber(statistics?.total_amount || 0) }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Pagado</div>
+          <div class="stat-value">${{ formatNumber(statistics?.paid_amount || 0) }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Pendiente</div>
+          <div class="stat-value">${{ formatNumber(statistics?.pending_amount || 0) }}</div>
+        </div>
+      </div>
+
+      <div class="filters-card">
+        <div class="filter-row">
+          <div class="filter-group search-group">
+            <label>Buscar</label>
+            <input 
+              v-model="searchQuery" 
+              type="text" 
+              placeholder="Número de compra o proveedor..."
+              class="search-input"
+            >
+          </div>
+          <div class="filter-group">
+            <label>Estado</label>
+            <select v-model="filters.status" @change="fetchPurchasesList">
+              <option value="">Todos</option>
+              <option value="DRAFT">Borrador</option>
+              <option value="ISSUED">Emitida</option>
+              <option value="PAID">Pagada</option>
+              <option value="PARTIAL">Parcial</option>
+              <option value="OVERDUE">Vencida</option>
+              <option value="CANCELLED">Cancelada</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Proveedor</label>
+            <select v-model="filters.partnerId" @change="fetchPurchasesList">
+              <option value="">Todos</option>
+              <option v-for="partner in partners" :key="partner.id" :value="partner.id">
+                {{ partner.name }}
+              </option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" @click="clearFilters">Limpiar</button>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Número</th>
+              <th>Fecha</th>
+              <th>Proveedor</th>
+              <th>Método de Pago</th>
+              <th>Estado</th>
+              <th>Total</th>
+              <th>Saldo</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="purchase in filteredPurchases" :key="purchase.id">
+              <td>{{ purchase.purchase_number }}</td>
+              <td>{{ formatDate(purchase.purchase_date) }}</td>
+              <td>{{ purchase.partner?.name || 'N/A' }}</td>
+              <td>
+                <span class="badge badge-info">{{ purchase.payment_method }}</span>
+              </td>
+              <td>
+                <span :class="['badge', getStatusClass(purchase.status)]">
+                  {{ purchase.status }}
+                </span>
+              </td>
+              <td>${{ formatNumber(purchase.total_amount) }}</td>
+              <td>${{ formatNumber(getBalance(purchase)) }}</td>
+              <td>
+                <div class="action-buttons">
+                  <button class="btn-icon-action" @click="viewPurchase(purchase)" title="Ver">
+                    👁️
+                  </button>
+                  <button 
+                    v-if="purchase.status !== 'PAID' && purchase.status !== 'CANCELLED' && getBalance(purchase) > 0"
+                    class="btn-icon-action" 
+                    @click="openPaymentModal(purchase)" 
+                    title="Pagar"
+                  >
+                    💰
+                  </button>
+                  <button 
+                    v-if="purchase.status === 'DRAFT' || purchase.status === 'ISSUED'"
+                    class="btn-icon-action" 
+                    @click="editPurchase(purchase)" 
+                    title="Editar"
+                  >
+                    ✏️
+                  </button>
+                  <button 
+                    v-if="purchase.status !== 'CANCELLED'"
+                    class="btn-icon-action" 
+                    @click="confirmCancel(purchase)" 
+                    title="Anular"
+                  >
+                    🚫
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="purchases.length === 0 && !loading">
+              <td colspan="8" class="empty-message">No hay compras registradas</td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-if="loading" class="loading-spinner">Cargando...</div>
+      </div>
     </div>
 
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">Total Compras</div>
-        <div class="stat-value">{{ statistics?.total_purchases || 0 }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Monto Total</div>
-        <div class="stat-value">${{ formatNumber(statistics?.total_amount || 0) }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Pagado</div>
-        <div class="stat-value">${{ formatNumber(statistics?.paid_amount || 0) }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Pendiente</div>
-        <div class="stat-value">${{ formatNumber(statistics?.pending_amount || 0) }}</div>
-      </div>
-    </div>
-
-    <div class="filters-card">
-      <div class="filter-row">
-        <div class="filter-group search-group">
-          <label>Buscar</label>
-          <input 
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="Número de compra o proveedor..."
-            class="search-input"
-          >
-        </div>
-        <div class="filter-group">
-          <label>Estado</label>
-          <select v-model="filters.status" @change="fetchPurchasesList">
-            <option value="">Todos</option>
-            <option value="DRAFT">Borrador</option>
-            <option value="ISSUED">Emitida</option>
-            <option value="PAID">Pagada</option>
-            <option value="PARTIAL">Parcial</option>
-            <option value="OVERDUE">Vencida</option>
-            <option value="CANCELLED">Cancelada</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label>Proveedor</label>
-          <select v-model="filters.partnerId" @change="fetchPurchasesList">
-            <option value="">Todos</option>
-            <option v-for="partner in partners" :key="partner.id" :value="partner.id">
-              {{ partner.name }}
-            </option>
-          </select>
-        </div>
-        <button class="btn btn-secondary" @click="clearFilters">Limpiar</button>
-      </div>
-    </div>
-
-    <div class="table-card">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Número</th>
-            <th>Fecha</th>
-            <th>Proveedor</th>
-            <th>Método de Pago</th>
-            <th>Estado</th>
-            <th>Total</th>
-            <th>Saldo</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="purchase in filteredPurchases" :key="purchase.id">
-            <td>{{ purchase.purchase_number }}</td>
-            <td>{{ formatDate(purchase.purchase_date) }}</td>
-            <td>{{ purchase.partner?.name || 'N/A' }}</td>
-            <td>
-              <span class="badge badge-info">{{ purchase.payment_method }}</span>
-            </td>
-            <td>
-              <span :class="['badge', getStatusClass(purchase.status)]">
-                {{ purchase.status }}
-              </span>
-            </td>
-            <td>${{ formatNumber(purchase.total_amount) }}</td>
-            <td>${{ formatNumber(getBalance(purchase)) }}</td>
-            <td>
-              <div class="action-buttons">
-                <button class="btn-icon-action" @click="viewPurchase(purchase)" title="Ver">
-                  👁️
-                </button>
-                <button 
-                  v-if="purchase.status !== 'PAID' && purchase.status !== 'CANCELLED' && getBalance(purchase) > 0"
-                  class="btn-icon-action" 
-                  @click="openPaymentModal(purchase)" 
-                  title="Pagar"
-                >
-                  💰
-                </button>
-                <button 
-                  v-if="purchase.status === 'DRAFT' || purchase.status === 'ISSUED'"
-                  class="btn-icon-action" 
-                  @click="editPurchase(purchase)" 
-                  title="Editar"
-                >
-                  ✏️
-                </button>
-                <button 
-                  v-if="purchase.status !== 'CANCELLED'"
-                  class="btn-icon-action" 
-                  @click="confirmCancel(purchase)" 
-                  title="Anular"
-                >
-                  🚫
-                </button>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="purchases.length === 0 && !loading">
-            <td colspan="8" class="empty-message">No hay compras registradas</td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-if="loading" class="loading-spinner">Cargando...</div>
-    </div>
+    <!-- Purchase Form View (Full Screen Toggle) -->
+    <PurchaseFormView
+      v-else
+      :purchase-id="selectedPurchaseId"
+      @close="closeForm"
+      @saved="onPurchaseSaved"
+    />
 
     <PaymentModal
       v-if="showPaymentModal"
@@ -145,18 +155,21 @@
       @close="showDetailModal = false"
     />
   </div>
+
 </template>
 
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
+import PurchaseFormView from './PurchaseFormView.vue'
 import PaymentModal from './PaymentModal.vue'
 import PurchaseDetailModal from './PurchaseDetailModal.vue'
 
 export default {
   name: 'PurchasesIndexView',
   components: {
+    PurchaseFormView,
     PaymentModal,
     PurchaseDetailModal
   },
@@ -170,6 +183,8 @@ export default {
     const statistics = ref(null)
     const loading = ref(false)
 
+    const showForm = ref(false)
+    const selectedPurchaseId = ref(null)
     const showPaymentModal = ref(false)
     const showDetailModal = ref(false)
     const selectedPurchase = ref(null)
@@ -268,8 +283,26 @@ export default {
       showDetailModal.value = true
     }
 
+    const openCreateForm = () => {
+      selectedPurchaseId.value = null
+      showForm.value = true
+    }
+
     const editPurchase = (purchase) => {
-      router.push(`/purchases/edit/${purchase.id}`)
+      selectedPurchaseId.value = purchase.id
+      showForm.value = true
+    }
+
+    const closeForm = () => {
+      showForm.value = false
+      selectedPurchaseId.value = null
+    }
+
+    const onPurchaseSaved = () => {
+      showForm.value = false
+      selectedPurchaseId.value = null
+      fetchPurchasesList()
+      fetchStatistics()
     }
 
     const openPaymentModal = (purchase) => {
@@ -312,6 +345,12 @@ export default {
 
     onMounted(() => {
       // Data is already being fetched by the immediate watcher
+      
+      // Si existe un borrador de compra, reabrir el formulario automáticamente
+      const draft = sessionStorage.getItem('purchaseDraft')
+      if (draft) {
+        showForm.value = true
+      }
     })
 
     return {
@@ -322,6 +361,8 @@ export default {
       loading,
       filters,
       searchQuery,
+      showForm,
+      selectedPurchaseId,
       showPaymentModal,
       showDetailModal,
       selectedPurchase,
@@ -331,6 +372,9 @@ export default {
       getStatusClass,
       getBalance,
       clearFilters,
+      openCreateForm,
+      closeForm,
+      onPurchaseSaved,
       viewPurchase,
       editPurchase,
       openPaymentModal,

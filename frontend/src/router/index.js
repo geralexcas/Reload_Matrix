@@ -176,16 +176,6 @@ const routes = [
         component: () => import('@/views/Purchases/IndexView.vue')
       },
       {
-        path: '/purchases/new',
-        name: 'purchase-new',
-        component: () => import('@/views/Purchases/PurchaseFormView.vue')
-      },
-      {
-        path: '/purchases/edit/:id',
-        name: 'purchase-edit',
-        component: () => import('@/views/Purchases/PurchaseFormView.vue')
-      },
-      {
         path: '/treasury',
         name: 'treasury',
         component: () => import('@/views/Treasury/IndexView.vue')
