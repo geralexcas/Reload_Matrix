@@ -69,6 +69,10 @@
               <span class="nav-icon">💹</span>
               <span>Ingresos</span>
             </router-link>
+            <router-link to="/accounting/reporte-egresos" class="nav-item nav-sub" active-class="active">
+              <span class="nav-icon">💸</span>
+              <span>Egresos</span>
+            </router-link>
             <router-link to="/accounting/reporte-patrimonio" class="nav-item nav-sub" active-class="active">
               <span class="nav-icon">⚖️</span>
               <span>Patrimonio</span>

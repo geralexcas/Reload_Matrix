@@ -131,6 +131,11 @@ const routes = [
         component: () => import('@/views/Accounting/ReporteIngresosView.vue')
       },
       {
+        path: '/accounting/reporte-egresos',
+        name: 'reporte-egresos',
+        component: () => import('@/views/Accounting/ReporteEgresosView.vue')
+      },
+      {
         path: '/accounting/reporte-patrimonio',
         name: 'reporte-patrimonio',
         component: () => import('@/views/Accounting/ReportePatrimonioView.vue')

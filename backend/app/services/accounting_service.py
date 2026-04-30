@@ -1155,6 +1155,113 @@ class AccountingService:
             },
         }
 
+    def get_reporte_egresos(
+        self,
+        company_id: int,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """
+        Genera el Reporte de Egresos (Compras y Gastos).
+        Incluye compras de inventario y gastos operacionales.
+        """
+        company = (
+            self.db.query(company_model.Company)
+            .filter(company_model.Company.id == company_id)
+            .first()
+        )
+        if not company:
+            return {"error": "Company not found"}
+
+        # 1. Obtener compras desde el modelo Invoice (PURCHASE)
+        inv_filter = [Invoice.invoice_type == "PURCHASE", Invoice.company_id == company_id]
+        if date_from:
+            inv_filter.append(Invoice.issue_date >= date_from)
+        if date_to:
+            inv_filter.append(Invoice.issue_date <= date_to)
+
+        invoices = (
+            self.db.query(Invoice)
+            .options(joinedload(Invoice.partner), joinedload(Invoice.items))
+            .filter(and_(*inv_filter))
+            .all()
+        )
+
+        # 2. Obtener compras desde el modelo Purchase
+        pur_filter = [Purchase.company_id == company_id]
+        if date_from:
+            pur_filter.append(Purchase.purchase_date >= date_from)
+        if date_to:
+            pur_filter.append(Purchase.purchase_date <= date_to)
+
+        purchases = (
+            self.db.query(Purchase)
+            .options(joinedload(Purchase.partner), joinedload(Purchase.items))
+            .filter(and_(*pur_filter))
+            .all()
+        )
+
+        entries = []
+        total_compras = Decimal("0.00")
+        total_iva_descontable = Decimal("0.00")
+        total_retenciones = Decimal("0.00")
+
+        # Procesar Facturas de Compra
+        for inv in invoices:
+            taxes = self._get_invoice_tax_breakdown(inv)
+            base = taxes["base_iva_19"] + taxes["base_iva_5"] + taxes["base_no_iva"]
+            partner_name = inv.partner.name if inv.partner else "N/A"
+            
+            entries.append({
+                "source": "Factura de Compra",
+                "id": inv.id,
+                "number": inv.invoice_number,
+                "date": inv.issue_date,
+                "partner_name": partner_name,
+                "base": base,
+                "tax_amount": taxes["total_iva"],
+                "total": inv.total_amount
+            })
+            total_compras += base
+            total_iva_descontable += taxes["total_iva"]
+
+        # Procesar Compras Directas
+        for pur in purchases:
+            taxes = self._get_invoice_tax_breakdown(pur)
+            base = taxes["base_iva_19"] + taxes["base_iva_5"] + taxes["base_no_iva"]
+            partner_name = pur.partner.name if pur.partner else "N/A"
+
+            entries.append({
+                "source": "Orden de Compra / Gasto",
+                "id": pur.id,
+                "number": pur.purchase_number,
+                "date": pur.purchase_date,
+                "partner_name": partner_name,
+                "base": base,
+                "tax_amount": taxes["total_iva"],
+                "total": pur.total_amount
+            })
+            total_compras += base
+            total_iva_descontable += taxes["total_iva"]
+
+        # Ordenar por fecha
+        entries.sort(key=lambda x: x["date"])
+
+        return {
+            "company_id": company_id,
+            "company_name": company.name,
+            "company_nit": company.nit,
+            "date_from": date_from,
+            "date_to": date_to,
+            "entries": entries,
+            "totals": {
+                "total_compras_netas": total_compras,
+                "total_iva_descontable": total_iva_descontable,
+                "total_egresos": total_compras + total_iva_descontable,
+                "num_registros": len(entries),
+            },
+        }
+
     def get_reporte_ingresos(
         self,
         company_id: int,

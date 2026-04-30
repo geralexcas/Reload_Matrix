@@ -509,6 +509,37 @@ def get_reporte_retenciones(
     return result
 
 
+@router.get("/reporte-egresos/")
+def get_reporte_egresos(
+    company_id: int,
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: user_model.User = Depends(get_current_user),
+):
+    """
+    Reporte de Egresos (Compras y Gastos).
+    Registra todas las salidas de dinero por compras o gastos.
+    """
+    db_company = (
+        db.query(company_model.Company)
+        .filter(company_model.Company.id == company_id)
+        .first()
+    )
+    if db_company is None:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    service = accounting_service.AccountingService(db)
+    result = service.get_reporte_egresos(
+        company_id=company_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
 @router.get("/reporte-ingresos/")
 def get_reporte_ingresos(
     company_id: int,
