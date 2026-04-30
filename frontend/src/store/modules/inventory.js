@@ -83,6 +83,21 @@ const actions = {
       commit('setLoading', false)
     }
   },
+  async bulkCreateProducts({ commit }, { bulkData, companyId }) {
+    commit('setLoading', true)
+    commit('clearError')
+    try {
+      const res = await api.post('/api/v1/inventory/bulk', bulkData, {
+        params: { company_id: companyId }
+      })
+      return res
+    } catch (err) {
+      commit('setError', err.response?.data?.detail || 'Error al crear los productos en masa')
+      throw err
+    } finally {
+      commit('setLoading', false)
+    }
+  },
   async updateProduct({ commit }, { productId, productData, companyId }) {
     commit('setLoading', true)
     commit('clearError')

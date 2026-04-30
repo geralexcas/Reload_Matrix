@@ -94,6 +94,20 @@ export default {
         .catch(err => {
           this.$toast?.error(err.response?.data?.detail || 'Error al actualizar producto')
         })
+      } else if (productData.is_bulk) {
+        // Bulk Create
+        const { is_bulk, ...bulkData } = productData
+        this.$store.dispatch('inventory/bulkCreateProducts', { 
+          bulkData, 
+          companyId 
+        })
+        .then(() => {
+          this.$toast?.success(`${productData.barcodes.length} productos creados exitosamente`)
+          this.goBack()
+        })
+        .catch(err => {
+          this.$toast?.error(err.response?.data?.detail || 'Error al crear productos en masa')
+        })
       } else {
         // Create new
         this.createProduct({ 

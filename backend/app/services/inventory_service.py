@@ -140,6 +140,40 @@ class InventoryService:
 
         return db_product
 
+    def bulk_create_products(
+        self, bulk_data: inv_schema.ProductBulkCreate, company_id: int
+    ) -> List[Product]:
+        """Create multiple products at once, each with a unique barcode and SKU."""
+        created_products = []
+        
+        # Base data for all products (excluding barcodes, barcode, sku and stock_level)
+        base_data = bulk_data.model_dump(exclude={'barcodes', 'barcode', 'sku', 'stock_level'})
+        base_sku = bulk_data.sku
+        
+        for barcode in bulk_data.barcodes:
+            # Generate a unique SKU by appending the barcode/serial
+            # SKU column is String(50), so we might need to truncate
+            # We use up to 49 characters to leave room for the dash
+            max_base_len = 49 - len(barcode)
+            unique_sku = f"{base_sku[:max_base_len]}-{barcode}"
+            
+            # Create ProductCreate schema for this specific item
+            item_data = inv_schema.ProductCreate(
+                **base_data,
+                sku=unique_sku,
+                barcode=barcode,
+                stock_level=Decimal("1.00") # Serialized items are created unit by unit
+            )
+            
+            try:
+                db_product = self.create_product(item_data, company_id)
+                created_products.append(db_product)
+            except ValueError as e:
+                # If one fails (e.g. duplicate barcode/SKU), we raise
+                raise e
+                
+        return created_products
+
     def get_products(
         self, company_id: int, skip: int = 0, limit: int = 100
     ) -> List[Product]:

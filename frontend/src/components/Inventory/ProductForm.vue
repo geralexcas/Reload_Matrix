@@ -13,7 +13,32 @@
       <small class="form-text">Código único para identificar el producto internamente</small>
     </div>
     
-    <div class="form-group">
+    <div class="form-group" v-if="!editMode">
+      <div class="form-check toggle-container">
+        <input 
+          type="checkbox" 
+          id="is_serialized" 
+          v-model="is_serialized"
+        >
+        <label for="is_serialized" class="toggle-label">
+          <strong>Ingreso Serializado</strong> (Múltiples unidades con diferentes series)
+        </label>
+      </div>
+    </div>
+
+    <div class="form-group" v-if="is_serialized && !editMode">
+      <label for="barcodes_input">Números de Serie / Códigos de Barras:*</label>
+      <textarea 
+        id="barcodes_input" 
+        v-model="barcodes_input" 
+        rows="5"
+        placeholder="Ingrese un serial por línea..."
+        @input="updateStockFromSerials"
+      ></textarea>
+      <small class="form-text">Se crearán {{ serialCount }} productos individuales.</small>
+    </div>
+
+    <div class="form-group" v-if="!is_serialized">
       <label for="barcode">Código de Barras:</label>
       <input 
         type="text" 
@@ -131,7 +156,9 @@
         min="0"
         step="0.01"
         placeholder="0.00"
+        :disabled="is_serialized"
       />
+      <small class="form-text" v-if="is_serialized">Calculado automáticamente por seriales.</small>
     </div>
     
     <div class="form-group">
@@ -237,6 +264,8 @@ export default {
         payment_method: 'CASH',
         is_active: true
       },
+      is_serialized: false,
+      barcodes_input: '',
       paymentMethods: [
         { value: 'CASH', label: 'Efectivo' },
         { value: 'BANK_TRANSFER', label: 'Transferencia' },
@@ -246,6 +275,11 @@ export default {
       editMode: false,
       isLoading: false,
       errors: {}
+    }
+  },
+  computed: {
+    serialCount() {
+      return this.barcodes_input.split('\n').map(s => s.trim()).filter(s => s !== '').length
     }
   },
   watch: {
@@ -291,7 +325,11 @@ export default {
         this.form.barcode = this.form.barcode.replace(/\D/g, '')
       }
     },
-    
+    updateStockFromSerials() {
+      if (this.is_serialized) {
+        this.form.stock_level = this.serialCount
+      }
+    },
     validateForm() {
       this.errors = {}
       let isValid = true
@@ -303,6 +341,11 @@ export default {
       
       if (!this.form.name || this.form.name.trim() === '') {
         this.errors.name = 'El nombre es requerido'
+        isValid = false
+      }
+
+      if (this.is_serialized && this.serialCount === 0) {
+        alert('Debe ingresar al menos un número de serie')
         isValid = false
       }
       
@@ -321,21 +364,6 @@ export default {
         isValid = false
       }
       
-      if (this.form.min_stock_level < 0) {
-        this.errors.min_stock_level = 'El nivel mínimo de stock no puede ser negativo'
-        isValid = false
-      }
-      
-      if (this.form.max_stock_level < 0) {
-        this.errors.max_stock_level = 'El nivel máximo de stock no puede ser negativo'
-        isValid = false
-      }
-      
-      if (parseFloat(this.form.min_stock_level) > parseFloat(this.form.max_stock_level)) {
-        this.errors.min_stock_level = 'El nivel mínimo no puede ser mayor que el máximo'
-        isValid = false
-      }
-      
       return isValid
     },
     
@@ -345,7 +373,17 @@ export default {
       }
       
       this.isLoading = true
-      this.$emit('save', this.form)
+      
+      if (this.is_serialized && !this.editMode) {
+        const barcodes = this.barcodes_input.split('\n').map(s => s.trim()).filter(s => s !== '')
+        this.$emit('save', {
+          ...this.form,
+          barcodes,
+          is_bulk: true
+        })
+      } else {
+        this.$emit('save', this.form)
+      }
     },
     
     cancel() {
@@ -410,6 +448,22 @@ export default {
   font-size: 0.875rem;
   margin-top: 0.25rem;
   display: block;
+}
+
+.toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: #f1f8ff;
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #c8e1ff;
+  margin-bottom: 20px;
+}
+
+.toggle-label {
+  cursor: pointer;
+  margin-bottom: 0 !important;
 }
 
 .form-actions {

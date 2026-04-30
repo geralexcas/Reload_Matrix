@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
 from app.schemas.purchase import PaymentMethodEnum
@@ -58,6 +58,11 @@ class ProductBase(BaseModel):
 
 class ProductCreate(ProductBase):
     pass
+
+
+class ProductBulkCreate(ProductBase):
+    barcodes: List[str] = Field(..., min_items=1)
+
 
 
 class ProductResponse(ProductBase):

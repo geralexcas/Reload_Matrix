@@ -45,6 +45,31 @@ def create_product(
     return service.create_product(product, company_id)
 
 
+@router.post("/bulk", response_model=List[inv_schema.ProductResponse])
+def bulk_create_products(
+    bulk_data: inv_schema.ProductBulkCreate,
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: user_model.User = Depends(get_current_user),
+):
+    """
+    Create multiple products (serialized).
+    """
+    db_company = (
+        db.query(company_model.Company)
+        .filter(company_model.Company.id == company_id)
+        .first()
+    )
+    if db_company is None:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    service = inventory_service.InventoryService(db)
+    try:
+        return service.bulk_create_products(bulk_data, company_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.get("/", response_model=List[inv_schema.ProductResponse])
 def read_products(
     company_id: int,
