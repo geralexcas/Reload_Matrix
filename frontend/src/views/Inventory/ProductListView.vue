@@ -218,16 +218,16 @@ export default {
     }
   },
   methods: {
-    ...mapActions('inventory', [
-      'fetchProducts',
-      'fetchProductById',
-      'createProduct',
-      'updateProduct',
-      'deleteProduct as deleteProductAction',
-      'adjustStock',
-      'fetchProductByBarcode',
-      'getLowStockProducts'
-    ]),
+    ...mapActions('inventory', {
+      fetchProducts: 'fetchProducts',
+      fetchProductById: 'fetchProductById',
+      createProduct: 'createProduct',
+      updateProduct: 'updateProduct',
+      deleteProductAction: 'deleteProduct',
+      adjustStock: 'adjustStock',
+      fetchProductByBarcode: 'fetchProductByBarcode',
+      getLowStockProducts: 'getLowStockProducts'
+    }),
     
     loadProducts() {
       // Get company ID from auth store or route
