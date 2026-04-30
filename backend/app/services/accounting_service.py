@@ -1262,19 +1262,23 @@ class AccountingService:
         # Procesar Asientos Contables (solo las líneas de gasto)
         for je in journal_entries:
             # Si el asiento viene de una factura o compra, lo ignoramos para no duplicar
-            # (Ya se procesan en los pasos 1 y 2)
             if je.reference and (je.reference.startswith('INV-') or je.reference.startswith('PUR-')):
                 continue
                 
             for line in je.lines:
-                # Si la cuenta empieza por 5 y tiene débito, es un gasto manual
-                if line.account and line.account.code.startswith('5') and line.debit_amount > 0:
+                # Obtenemos la cuenta de forma segura
+                acc = line.account
+                if not acc:
+                    # Intento de recuperación manual si el join falló
+                    acc = self.db.query(ChartOfAccounts).filter(ChartOfAccounts.id == line.account_id).first()
+                
+                if acc and acc.code.startswith('5') and line.debit_amount > 0:
                     entries.append({
                         "source": "Asiento Contable",
                         "id": je.id,
                         "number": f"AS-{je.id}",
                         "date": je.entry_date,
-                        "partner_name": "Gasto General / Manual",
+                        "partner_name": je.description or "Gasto General",
                         "base": line.debit_amount,
                         "tax_amount": Decimal("0.00"),
                         "total": line.debit_amount
