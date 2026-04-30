@@ -28,6 +28,7 @@ class Product(Base):
     )  # Nivel mínimo de stock para alerta
     max_stock_level = Column(Numeric(15, 2), default=999999.99)  # Nivel máximo de stock
     is_active = Column(Boolean, default=True)
+    payment_method = Column(String(50), default="CASH")  # Forma de pago: CASH, BANK_TRANSFER, CREDIT
     company_id = Column(Integer, ForeignKey("companies.id"))
     supplier_id = Column(Integer, ForeignKey("partners.id"), nullable=True) # Proveedor asignado
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -135,6 +135,19 @@
     </div>
     
     <div class="form-group">
+      <label for="payment_method">Forma de Pago:*</label>
+      <select 
+        id="payment_method" 
+        v-model="form.payment_method"
+        required
+      >
+        <option v-for="method in paymentMethods" :key="method.value" :value="method.value">
+          {{ method.label }}
+        </option>
+      </select>
+    </div>
+    
+    <div class="form-group">
       <label for="min_stock_level">Nivel Mínimo de Stock:*</label>
       <input 
         type="number" 
@@ -221,8 +234,14 @@ export default {
         min_stock_level: 0,
         max_stock_level: 999999.99,
         supplier_id: null,
+        payment_method: 'CASH',
         is_active: true
       },
+      paymentMethods: [
+        { value: 'CASH', label: 'Efectivo' },
+        { value: 'BANK_TRANSFER', label: 'Transferencia' },
+        { value: 'CREDIT', label: 'Crédito (Pendiente)' }
+      ],
       suppliers: [],
       editMode: false,
       isLoading: false,
@@ -242,6 +261,7 @@ export default {
           this.form.min_stock_level = parseFloat(this.form.min_stock_level) || 0
           this.form.max_stock_level = parseFloat(this.form.max_stock_level) || 999999.99
           if (this.form.supplier_id === undefined) this.form.supplier_id = null
+          if (this.form.payment_method === undefined) this.form.payment_method = 'CASH'
         }
       },
       immediate: true

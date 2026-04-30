@@ -83,14 +83,37 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="item in invoice.items" :key="item.id">
-                <td>{{ item.description }}</td>
-                <td>{{ item.serial_number || '' }}</td>
-                <td class="text-center">{{ item.quantity }}</td>
-                <td class="text-right">{{ formatNumber(item.unit_price) }}</td>
-                <td class="text-right">{{ formatNumber(item.discount || 0) }}</td>
-                <td class="text-right">{{ formatNumber(item.line_total) }}</td>
-              </tr>
+              <template v-for="(item, idx) in groupedItems" :key="idx">
+                <!-- If it is a group -->
+                <template v-if="item.isGroup">
+                  <tr class="font-weight-bold bg-light">
+                    <td>{{ item.description }}</td>
+                    <td>-</td>
+                    <td class="text-center">1</td>
+                    <td class="text-right">{{ formatNumber(item.unit_price) }}</td>
+                    <td class="text-right">{{ formatNumber(item.discount) }}</td>
+                    <td class="text-right">{{ formatNumber(item.line_total) }}</td>
+                  </tr>
+                  <!-- List the parts below without prices -->
+                  <tr v-for="part in item.parts" :key="part.id" class="text-muted small">
+                    <td style="padding-left: 20px;">- {{ part.description }}</td>
+                    <td>{{ part.serial_number || '' }}</td>
+                    <td class="text-center">{{ part.quantity }}</td>
+                    <td class="text-right">-</td>
+                    <td class="text-right">-</td>
+                    <td class="text-right">-</td>
+                  </tr>
+                </template>
+                <!-- If it is a regular item -->
+                <tr v-else>
+                  <td>{{ item.description }}</td>
+                  <td>{{ item.serial_number || '' }}</td>
+                  <td class="text-center">{{ item.quantity }}</td>
+                  <td class="text-right">{{ formatNumber(item.unit_price) }}</td>
+                  <td class="text-right">{{ formatNumber(item.discount || 0) }}</td>
+                  <td class="text-right">{{ formatNumber(item.line_total) }}</td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -146,12 +169,23 @@
         </div>
         <div class="pos-divider">--------------------------------</div>
         <div class="pos-items">
-          <div v-for="item in invoice.items" :key="item.id" class="pos-item">
-            <div>{{ item.description }}</div>
-            <div class="pos-item-data">
-              {{ item.quantity }} x {{ formatNumber(item.unit_price) }} = {{ formatNumber(item.line_total) }}
+          <template v-for="(item, idx) in groupedItems" :key="idx">
+            <div v-if="item.isGroup" class="pos-item">
+              <div><strong>{{ item.description }}</strong></div>
+              <div v-for="part in item.parts" :key="part.id" style="padding-left: 5px; font-size: 10px;">
+                - {{ part.description }}
+              </div>
+              <div class="pos-item-data">
+                1 x {{ formatNumber(item.unit_price) }} = {{ formatNumber(item.line_total) }}
+              </div>
             </div>
-          </div>
+            <div v-else class="pos-item">
+              <div>{{ item.description }}</div>
+              <div class="pos-item-data">
+                {{ item.quantity }} x {{ formatNumber(item.unit_price) }} = {{ formatNumber(item.line_total) }}
+              </div>
+            </div>
+          </template>
         </div>
         <div class="pos-divider">--------------------------------</div>
         <div class="pos-totals">
@@ -181,6 +215,49 @@ export default {
     }
   },
   computed: {
+    groupedItems() {
+      if (!this.invoice.items) return [];
+      const groups = {};
+      const result = [];
+      
+      this.invoice.items.forEach(item => {
+        if (item.assembly_group_id) {
+          if (!groups[item.assembly_group_id]) {
+            let groupName = "Equipo Ensamblado";
+            // Try to extract name from [Name] format in description
+            const match = item.description.match(/^\[(.*?)\]/);
+            if (match) {
+              groupName = "Equipo: " + match[1];
+            }
+            groups[item.assembly_group_id] = {
+              isGroup: true,
+              description: groupName,
+              parts: [],
+              unit_price: 0,
+              discount: 0,
+              line_total: 0
+            };
+            result.push(groups[item.assembly_group_id]);
+          }
+          const g = groups[item.assembly_group_id];
+          
+          // Clean the description for the part (remove the [Name] prefix if present)
+          const cleanItem = { ...item };
+          const match = item.description.match(/^\[.*?\]\s*(.*)/);
+          if (match) {
+            cleanItem.description = match[1];
+          }
+          
+          g.parts.push(cleanItem);
+          g.unit_price += (parseFloat(item.unit_price) * parseFloat(item.quantity));
+          g.discount += parseFloat(item.discount || 0);
+          g.line_total += parseFloat(item.line_total);
+        } else {
+          result.push({ isGroup: false, ...item });
+        }
+      });
+      return result;
+    },
     calculateSubtotal() {
       if (!this.invoice.items) return 0;
       return this.invoice.items.reduce((acc, item) => acc + (parseFloat(item.quantity) * parseFloat(item.unit_price)), 0);

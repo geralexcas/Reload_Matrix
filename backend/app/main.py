@@ -31,9 +31,12 @@ logger = logging.getLogger("app")
 app = FastAPI(title="Business Management System", version="0.1.0")
 
 # Configure CORS with allowed origins from settings
+import os
+origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+logger.info(f"CORS allowed origins: {origins}")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS.split(","),
+    allow_origins=origins if origins else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

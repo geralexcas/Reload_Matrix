@@ -2220,3 +2220,75 @@ class AccountingService:
             "detalle_costos": costos,
             "detalle_gastos": gastos,
         }
+
+    def create_journal_entry_for_initial_stock(
+        self,
+        product_id: int,
+        product_name: str,
+        company_id: int,
+        total_amount: Decimal,
+        payment_method: str,
+    ) -> Optional[JournalEntry]:
+        """
+        Create automatic journal entry for initial stock of a product.
+        Debit: Inventarios (1140)
+        Credit: Caja/Banco/Cuentas por pagar (2205)
+        """
+        inventory = self._get_account_by_code(company_id, "1140")
+        accounts_payable = self._get_account_by_code(company_id, "2205")
+        cash = self._get_account_by_code(company_id, "111001")
+        bank = self._get_account_by_code(company_id, "111010")
+
+        if not inventory:
+            raise ValueError("Required inventory account (1140) not found")
+
+        entry_date = datetime.now(timezone.utc)
+        description = f"Stock inicial producto - {product_name} (ID: {product_id})"
+        reference = f"SI-{product_id:06d}"
+
+        db_je = JournalEntry(
+            entry_date=entry_date,
+            description=description,
+            reference=reference,
+            company_id=company_id,
+            is_posted=True,
+        )
+        self.db.add(db_je)
+        self.db.flush()
+
+        # Debit: Inventory
+        self.db.add(
+            JournalEntryLine(
+                journal_entry_id=db_je.id,
+                account_id=inventory.id,
+                debit_amount=total_amount,
+                credit_amount=Decimal("0.00"),
+                description=f"Inventarios - Stock inicial {product_name}",
+            )
+        )
+
+        # Credit: Choose account based on payment method
+        credit_account = None
+        if payment_method in ("CASH",):
+            credit_account = cash
+        elif payment_method in ("BANK_TRANSFER", "CHECK", "CREDIT_CARD"):
+            credit_account = bank
+        else:  # CREDIT, PARTIAL_CREDIT
+            credit_account = accounts_payable
+
+        if not credit_account:
+            credit_account = accounts_payable or inventory # Fallback
+
+        self.db.add(
+            JournalEntryLine(
+                journal_entry_id=db_je.id,
+                account_id=credit_account.id,
+                debit_amount=Decimal("0.00"),
+                credit_amount=total_amount,
+                description=f"Pago stock inicial - {payment_method}",
+            )
+        )
+
+        self.db.commit()
+        self.db.refresh(db_je)
+        return db_je

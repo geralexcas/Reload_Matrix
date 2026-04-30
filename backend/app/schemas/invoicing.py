@@ -81,6 +81,8 @@ class InvoiceItemBase(BaseModel):
     line_total: Decimal
     # Para referencia a productos en inventario (opcional)
     product_id: Optional[int] = None
+    # Agrupador para componentes de un equipo ensamblado (PC Armado)
+    assembly_group_id: Optional[str] = Field(None, max_length=50)
 
     @field_validator(
         "quantity", "unit_price", "discount", "tax_rate", "tax_amount", "line_total"

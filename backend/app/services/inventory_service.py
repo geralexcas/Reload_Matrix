@@ -1,8 +1,11 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from decimal import Decimal
 from app.models.sql.inventory import Product
 from app.models.sql import company as company_model
 from app.schemas import inventory as inv_schema
+from app.services.accounting_service import AccountingService
+from app.services.treasury_service import TreasuryService
 
 
 class InventoryService:
@@ -29,6 +32,53 @@ class InventoryService:
         self.db.add(db_product)
         self.db.commit()
         self.db.refresh(db_product)
+
+        # Create accounting entry if initial stock is provided
+        if db_product.stock_level > 0 and db_product.purchase_price > 0:
+            try:
+                accounting_service = AccountingService(self.db)
+                
+                # Get payment method as string
+                payment_method_str = "CASH"
+                if product.payment_method:
+                    if hasattr(product.payment_method, 'value'):
+                        payment_method_str = product.payment_method.value
+                    else:
+                        payment_method_str = str(product.payment_method)
+                
+                accounting_service.create_journal_entry_for_initial_stock(
+                    product_id=db_product.id,
+                    product_name=db_product.name,
+                    company_id=company_id,
+                    total_amount=db_product.stock_level * db_product.purchase_price,
+                    payment_method=payment_method_str
+                )
+                
+                # Create treasury transaction if not CREDIT
+                if payment_method_str not in ["CREDIT"]:
+                    treasury_service = TreasuryService(self.db)
+                    account_type = "CASH" if payment_method_str == "CASH" else "BANK"
+                    total_amount = db_product.stock_level * db_product.purchase_price
+                    
+                    if account_type == "CASH":
+                        accounts = treasury_service.get_cash_accounts(company_id)
+                    else:
+                        accounts = treasury_service.get_bank_accounts(company_id)
+                    
+                    if accounts:
+                        treasury_service.withdraw(
+                            account_type=account_type,
+                            account_id=accounts[0].id,
+                            amount=total_amount,
+                            description=f"Stock inicial - {db_product.name}",
+                            reference=f"SI-{db_product.id:06d}",
+                            company_id=company_id
+                        )
+                        
+            except Exception as e:
+                import logging
+                logging.error(f"Error creating accounting/treasury entry: {e}")
+
         return db_product
 
     def get_products(

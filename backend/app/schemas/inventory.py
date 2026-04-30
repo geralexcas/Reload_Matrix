@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import datetime
 from decimal import Decimal
+from app.schemas.purchase import PaymentMethodEnum
+
 
 
 class ProductBase(BaseModel):
@@ -23,6 +25,9 @@ class ProductBase(BaseModel):
     min_stock_level: Decimal = Field(default=Decimal("0.00"), decimal_places=2)
     max_stock_level: Decimal = Field(default=Decimal("999999.99"), decimal_places=2)
     supplier_id: Optional[int] = None
+    payment_method: Optional[PaymentMethodEnum] = Field(
+        default=PaymentMethodEnum.CASH
+    )
     is_active: bool = True
 
     @field_validator("barcode")

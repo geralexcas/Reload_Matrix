@@ -79,6 +79,8 @@ class InvoiceItem(Base):
     )  # Cantidad * Precio unitario - Descuento + Impuesto
     # Para referencia a productos en inventario (opcional)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
+    # Agrupador para componentes de un equipo ensamblado (PC Armado)
+    assembly_group_id = Column(String(50), nullable=True)
 
     # Relationships
     invoice = relationship("Invoice", back_populates="items")

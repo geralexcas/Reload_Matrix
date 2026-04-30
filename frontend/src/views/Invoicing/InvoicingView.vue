@@ -135,7 +135,12 @@
 
         <!-- Tarjeta: Agregar Productos -->
         <div class="card p-4 mb-4 bg-light">
-          <h3 class="card-title">Agregar Productos</h3>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="card-title mb-0">Agregar Productos</h3>
+            <button type="button" class="btn btn-warning font-weight-bold" @click="showAssemblyModal = true">
+              <i class="fas fa-tools mr-1"></i> Armar Equipo
+            </button>
+          </div>
           <div class="add-item-bar">
             <div class="form-group flex-2 mb-0">
               <select v-model="newItem.product_id" @change="onNewItemProductChange" class="form-control">
@@ -187,9 +192,15 @@
               <tr v-if="form.items.length === 0">
                 <td colspan="7" class="text-center text-muted p-4">No hay productos agregados.</td>
               </tr>
-              <tr v-for="(item, idx) in form.items" :key="idx">
-                <td>{{ getProductName(item.product_id) }}</td>
-                <td>{{ item.description || '-' }}</td>
+              <tr v-for="(item, idx) in form.items" :key="idx" :class="{'bg-light': item.assembly_group_id}">
+                <td>
+                  <span v-if="item.assembly_group_id" class="badge badge-info mr-2" title="Parte de Equipo Armado"><i class="fas fa-tools"></i></span>
+                  {{ getProductName(item.product_id) }}
+                </td>
+                <td>
+                  <span v-if="item.assembly_name" class="font-weight-bold text-primary mr-1">[{{ item.assembly_name }}]</span>
+                  {{ item.description || '-' }}
+                </td>
                 <td class="text-right">{{ formatCOP(item.unit_price) }}</td>
                 <td class="text-center">{{ item.quantity }}</td>
                 <td class="text-right">{{ formatCOP(item.discount) }}</td>
@@ -359,6 +370,15 @@
       :initialMode="printMode"
       @close="showPrintModal = false"
     />
+
+    <!-- Modal Armar Equipo -->
+    <EquipoAssemblyModal 
+      v-if="showAssemblyModal"
+      :show="showAssemblyModal"
+      :products="products"
+      @close="showAssemblyModal = false"
+      @confirm="onAssemblyConfirm"
+    />
   </div>
 </template>
 
@@ -366,11 +386,13 @@
 import api from '@/services/api'
 import { formatCOP } from '@/utils/formatters'
 import InvoicePrintModal from '@/components/Invoicing/InvoicePrintModal.vue'
+import EquipoAssemblyModal from '@/components/Invoicing/EquipoAssemblyModal.vue'
 
 export default {
   name: 'InvoicingView',
   components: {
-    InvoicePrintModal
+    InvoicePrintModal,
+    EquipoAssemblyModal
   },
   data() {
     return {
@@ -407,6 +429,7 @@ export default {
         apply_tax: true
       },
       showPrintModal: false,
+      showAssemblyModal: false,
       selectedInvoiceForPrint: null,
       printMode: 'standard',
       partnerWallet: null,
@@ -567,6 +590,12 @@ export default {
         apply_tax: true
       }
     },
+    onAssemblyConfirm(assembledItems) {
+      // Add all items generated from the assembly modal to the invoice
+      assembledItems.forEach(item => {
+        this.form.items.push(item);
+      });
+    },
     removeItem(idx) {
       this.form.items.splice(idx, 1)
     },
@@ -626,8 +655,11 @@ export default {
           reference: `Factura Venta INV-${Date.now()}`,
 
           items: this.form.items.map(item => {
-            const product = this.products.find(p => p.id === item.product_id)
-            const desc = item.description ? `${product.name} - ${item.description}` : product.name
+            let desc = item.description;
+            if (!item.assembly_group_id) {
+              const product = this.products.find(p => p.id === item.product_id)
+              desc = item.description ? `${product.name} - ${item.description}` : product.name
+            }
             const sub = this.getItemSubtotal(item)
             const tax_amt = sub * (item.tax_rate / 100) || 0
             return {
@@ -638,7 +670,8 @@ export default {
               discount: item.discount, 
               tax_rate: item.tax_rate,
               tax_amount: tax_amt,
-              line_total: sub + tax_amt
+              line_total: sub + tax_amt,
+              assembly_group_id: item.assembly_group_id || null
             }
           })
         }
