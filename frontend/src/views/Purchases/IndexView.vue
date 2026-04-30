@@ -2,7 +2,7 @@
   <div class="purchases-container">
     <div class="page-header">
       <h1 class="page-title">Compras</h1>
-      <button class="btn btn-primary" @click="showCreateModal = true">
+      <button class="btn btn-primary" @click="$router.push('/purchases/new')">
         <span class="btn-icon">+</span>
         Nueva Compra
       </button>
@@ -106,7 +106,7 @@
                   💰
                 </button>
                 <button 
-                  v-if="purchase.status === 'DRAFT'"
+                  v-if="purchase.status === 'DRAFT' || purchase.status === 'ISSUED'"
                   class="btn-icon-action" 
                   @click="editPurchase(purchase)" 
                   title="Editar"
@@ -132,19 +132,6 @@
       <div v-if="loading" class="loading-spinner">Cargando...</div>
     </div>
 
-    <CreatePurchaseModal
-      v-if="showCreateModal"
-      @close="showCreateModal = false"
-      @created="onPurchaseCreated"
-    />
-
-    <EditPurchaseModal
-      v-if="showEditModal"
-      :purchase="selectedPurchase"
-      @close="showEditModal = false"
-      @updated="onPurchaseUpdated"
-    />
-
     <PaymentModal
       v-if="showPaymentModal"
       :purchase="selectedPurchase"
@@ -163,21 +150,19 @@
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useStore } from 'vuex'
-import CreatePurchaseModal from './CreatePurchaseModal.vue'
-import EditPurchaseModal from './EditPurchaseModal.vue'
+import { useRouter } from 'vue-router'
 import PaymentModal from './PaymentModal.vue'
 import PurchaseDetailModal from './PurchaseDetailModal.vue'
 
 export default {
   name: 'PurchasesIndexView',
   components: {
-    CreatePurchaseModal,
-    EditPurchaseModal,
     PaymentModal,
     PurchaseDetailModal
   },
   setup() {
     const store = useStore()
+    const router = useRouter()
     const companyId = computed(() => store.getters['company/selectedCompanyId'])
 
     const purchases = ref([])
@@ -185,8 +170,6 @@ export default {
     const statistics = ref(null)
     const loading = ref(false)
 
-    const showCreateModal = ref(false)
-    const showEditModal = ref(false)
     const showPaymentModal = ref(false)
     const showDetailModal = ref(false)
     const selectedPurchase = ref(null)
@@ -286,8 +269,7 @@ export default {
     }
 
     const editPurchase = (purchase) => {
-      selectedPurchase.value = purchase
-      showEditModal.value = true
+      router.push(`/purchases/edit/${purchase.id}`)
     }
 
     const openPaymentModal = (purchase) => {
@@ -322,18 +304,6 @@ export default {
       }
     }, { immediate: true })
 
-    const onPurchaseCreated = () => {
-      showCreateModal.value = false
-      fetchPurchasesList()
-      fetchStatistics()
-    }
-
-    const onPurchaseUpdated = () => {
-      showEditModal.value = false
-      fetchPurchasesList()
-      fetchStatistics()
-    }
-
     const onPaymentRegistered = () => {
       showPaymentModal.value = false
       fetchPurchasesList()
@@ -352,8 +322,6 @@ export default {
       loading,
       filters,
       searchQuery,
-      showCreateModal,
-      showEditModal,
       showPaymentModal,
       showDetailModal,
       selectedPurchase,
@@ -367,8 +335,6 @@ export default {
       editPurchase,
       openPaymentModal,
       confirmCancel,
-      onPurchaseCreated,
-      onPurchaseUpdated,
       onPaymentRegistered
     }
   }
