@@ -359,31 +359,37 @@ export default {
       }).format(amount)
     },
     
-    loadChartOfAccounts() {
-      // This would normally fetch from the store or API
-      // For now, we'll simulate with an empty array
-      // In a real implementation, we'd fetch from the accounting store
+    async loadChartOfAccounts() {
       this.isLoading = true
-      // Simulate API call
-      setTimeout(() => {
-        // This would be replaced with actual store fetch
-        this.chartOfAccounts = [
-          { id: 1, code: '1110', name: 'Efectivo y equivalentes' },
-          { id: 2, code: '1130', name: 'Cuentas por cobrar' },
-          { id: 3, code: '1140', name: 'Inventarios' },
-          { id: 4, code: '2110', name: 'Cuentas por pagar' },
-          { id: 5, code: '4100', name: 'Ingresos por ventas' },
-          { id: 6, code: '5100', name: 'Costo de ventas' },
-          { id: 7, code: '6100', name: 'Gastos de administración' }
-        ]
+      try {
+        const companyId = this.$route.params.companyId || 1
+        const response = await this.$store.dispatch('accounting/fetchChartOfAccounts', { companyId, limit: 1000 })
+        this.chartOfAccounts = response.data || []
+      } catch (err) {
+        console.error('Error al cargar el PUC', err)
+        // Fallback to empty if error
+        this.chartOfAccounts = []
+      } finally {
         this.isLoading = false
-      }, 500)
+      }
     }
   },
   created() {
-    // If we're editing an existing entry, load chart of accounts
+    // Load chart of accounts for both new and existing entries
+    this.loadChartOfAccounts()
+    
     if (this.journalEntry) {
-      this.loadChartOfAccounts()
+      this.editMode = true
+      this.isPosted = this.journalEntry.is_posted
+      this.form = {
+        entry_date: this.journalEntry.entry_date,
+        description: this.journalEntry.description,
+        reference: this.journalEntry.reference || '',
+        lines: this.journalEntry.journal_entry_lines ? [...this.journalEntry.journal_entry_lines] : []
+      }
+    } else {
+      // Add first empty line for new entry
+      this.addLine()
     }
   }
 }
