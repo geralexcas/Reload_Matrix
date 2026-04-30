@@ -36,7 +36,7 @@ class AccountingService:
             .filter(ChartOfAccounts.company_id == company_id)
             .offset(skip)
             .limit(limit)
-            .unique().all()
+            .all()
         )
 
     def get_chart_of_account_by_id(
@@ -118,7 +118,7 @@ class AccountingService:
             .filter(JournalEntry.company_id == company_id)
             .offset(skip)
             .limit(limit)
-            .unique().all()
+            .all()
         )
 
     def get_journal_entry_by_id(
@@ -238,13 +238,13 @@ class AccountingService:
             total_debits = (
                 self.db.query(JournalEntryLine.debit_amount)
                 .filter(JournalEntryLine.journal_entry_id == je_id)
-                .unique().all()
+                .all()
             )
 
             total_credits = (
                 self.db.query(JournalEntryLine.credit_amount)
                 .filter(JournalEntryLine.journal_entry_id == je_id)
-                .unique().all()
+                .all()
             )
 
             sum_debits = (
@@ -279,7 +279,7 @@ class AccountingService:
             ChartOfAccounts.company_id == company_id,
         )
         
-        accounts = accounts_query.order_by(ChartOfAccounts.code).unique().all()
+        accounts = accounts_query.order_by(ChartOfAccounts.code).all()
 
         date_filter = [
             JournalEntry.company_id == company_id,
@@ -302,7 +302,7 @@ class AccountingService:
                 .join(JournalEntry, JournalEntryLine.journal_entry_id == JournalEntry.id)
                 .filter(JournalEntryLine.account_id == account.id)
                 .filter(and_(*date_filter))
-                .unique().all()
+                .all()
             )
             
             debits = sum([l.debit_amount for l in lines]) if lines else Decimal("0.00")
@@ -381,7 +381,7 @@ class AccountingService:
         if account_code:
             accounts_query = accounts_query.filter(ChartOfAccounts.code == account_code)
 
-        accounts = accounts_query.order_by(ChartOfAccounts.code).unique().all()
+        accounts = accounts_query.order_by(ChartOfAccounts.code).all()
 
         date_filter = []
         if date_from:
@@ -412,7 +412,7 @@ class AccountingService:
 
             lines_query = lines_query.order_by(JournalEntry.entry_date, JournalEntry.id)
 
-            raw_lines = lines_query.unique().all()
+            raw_lines = lines_query.all()
 
             saldo_inicial = Decimal("0.00")
             if date_from:
@@ -428,7 +428,7 @@ class AccountingService:
                         JournalEntry.is_posted == True,
                         JournalEntry.entry_date < date_from,
                     )
-                    .unique().all()
+                    .all()
                 )
                 for jel, je in initial_lines:
                     if account.account_type in ("ASSET", "EXPENSE"):
@@ -574,7 +574,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter))
             .order_by(Invoice.issue_date, Invoice.invoice_number)
-            .unique().all()
+            .all()
         )
 
         entries = []
@@ -699,7 +699,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter))
             .order_by(Invoice.issue_date, Invoice.invoice_number)
-            .unique().all()
+            .all()
         )
 
         p_date_filter = [
@@ -715,7 +715,7 @@ class AccountingService:
             .options(joinedload(Purchase.partner), joinedload(Purchase.items))
             .filter(and_(*p_date_filter))
             .order_by(Purchase.purchase_date, Purchase.purchase_number)
-            .unique().all()
+            .all()
         )
 
         je_date_filter = [
@@ -733,7 +733,7 @@ class AccountingService:
             .options(joinedload(JournalEntry.lines))
             .filter(and_(*je_date_filter))
             .order_by(JournalEntry.entry_date, JournalEntry.reference)
-            .unique().all()
+            .all()
         )
 
         all_purchases = invoices + dedicated_purchases
@@ -1006,7 +1006,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter_sales))
             .order_by(Invoice.issue_date)
-            .unique().all()
+            .all()
         )
 
         purchase_invoices = (
@@ -1014,7 +1014,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter_purchases))
             .order_by(Invoice.issue_date)
-            .unique().all()
+            .all()
         )
 
         entries = []
@@ -1185,7 +1185,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter))
             .order_by(Invoice.issue_date)
-            .unique().all()
+            .all()
         )
 
         entries = []
@@ -2120,7 +2120,7 @@ class AccountingService:
             ChartOfAccounts.id, ChartOfAccounts.code, ChartOfAccounts.name
         )
 
-        results = query.unique().all()
+        results = query.all()
         accounts = []
         for row in results:
             if nature == "deudora":
