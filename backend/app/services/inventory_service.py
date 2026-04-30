@@ -33,48 +33,107 @@ class InventoryService:
         self.db.commit()
         self.db.refresh(db_product)
 
-        # Create accounting entry if initial stock is provided
+        # Create accounting entry or purchase if initial stock is provided
         if db_product.stock_level > 0 and db_product.purchase_price > 0:
             try:
-                accounting_service = AccountingService(self.db)
-                
-                # Get payment method as string
                 payment_method_str = "CASH"
                 if product.payment_method:
                     if hasattr(product.payment_method, 'value'):
                         payment_method_str = product.payment_method.value
                     else:
                         payment_method_str = str(product.payment_method)
-                
-                accounting_service.create_journal_entry_for_initial_stock(
-                    product_id=db_product.id,
-                    product_name=db_product.name,
-                    company_id=company_id,
-                    total_amount=db_product.stock_level * db_product.purchase_price,
-                    payment_method=payment_method_str
-                )
-                
-                # Create treasury transaction if not CREDIT
-                if payment_method_str not in ["CREDIT"]:
-                    treasury_service = TreasuryService(self.db)
-                    account_type = "CASH" if payment_method_str == "CASH" else "BANK"
-                    total_amount = db_product.stock_level * db_product.purchase_price
-                    
-                    if account_type == "CASH":
-                        accounts = treasury_service.get_cash_accounts(company_id)
-                    else:
-                        accounts = treasury_service.get_bank_accounts(company_id)
-                    
-                    if accounts:
-                        treasury_service.withdraw(
-                            account_type=account_type,
-                            account_id=accounts[0].id,
-                            amount=total_amount,
-                            description=f"Stock inicial - {db_product.name}",
-                            reference=f"SI-{db_product.id:06d}",
-                            company_id=company_id
-                        )
+
+                if payment_method_str in ["CREDIT", "PARTIAL_CREDIT"] and not product.supplier_id:
+                    raise ValueError("Se requiere un proveedor asignado para registrar stock inicial a crédito.")
+
+                total_amount = db_product.stock_level * db_product.purchase_price
+
+                if product.supplier_id:
+                    # Create a formal Purchase record
+                    from app.models.sql.purchases import Purchase, PurchaseItem
+                    import time
+                    purchase_num = f"SI-PUR-{int(time.time())}-{db_product.id}"
+                    db_purchase = Purchase(
+                        purchase_number=purchase_num,
+                        partner_id=product.supplier_id,
+                        subtotal=total_amount,
+                        tax_amount=Decimal("0.00"),
+                        total_amount=total_amount,
+                        payment_method=payment_method_str,
+                        status="ISSUED",
+                        company_id=company_id,
+                        notes="Stock inicial generado automáticamente desde inventario",
+                    )
+                    self.db.add(db_purchase)
+                    self.db.flush()
+                    db_purchase_item = PurchaseItem(
+                        purchase_id=db_purchase.id,
+                        product_id=db_product.id,
+                        description=f"Stock inicial - {db_product.name}",
+                        quantity=db_product.stock_level,
+                        unit_price=db_product.purchase_price,
+                        line_total=total_amount
+                    )
+                    self.db.add(db_purchase_item)
+                    self.db.flush()
+
+                    # Trigger purchase accounting (which handles accounts payable and inventory)
+                    accounting_service = AccountingService(self.db)
+                    accounting_service.create_journal_entry_for_purchase(
+                        purchase_id=db_purchase.id,
+                        company_id=company_id,
+                        total_amount=total_amount,
+                        subtotal=total_amount,
+                        tax_amount=Decimal("0.00"),
+                        partner_id=product.supplier_id,
+                        payment_method=payment_method_str
+                    )
+
+                    # Withdraw from treasury if paid
+                    if payment_method_str not in ["CREDIT"]:
+                        treasury_service = TreasuryService(self.db)
+                        account_type = "CASH" if payment_method_str == "CASH" else "BANK"
                         
+                        accounts = treasury_service.get_cash_accounts(company_id) if account_type == "CASH" else treasury_service.get_bank_accounts(company_id)
+                        
+                        if accounts:
+                            treasury_service.withdraw(
+                                account_type=account_type,
+                                account_id=accounts[0].id,
+                                amount=total_amount,
+                                description=f"Pago stock inicial - {db_product.name}",
+                                reference=f"PUR-{db_purchase.id:06d}",
+                                company_id=company_id
+                            )
+                else:
+                    # Legacy: No supplier provided, but payment method is NOT credit. 
+                    # Use the journal entry approach so it doesn't leave phantom debt.
+                    accounting_service = AccountingService(self.db)
+                    accounting_service.create_journal_entry_for_initial_stock(
+                        product_id=db_product.id,
+                        product_name=db_product.name,
+                        company_id=company_id,
+                        total_amount=total_amount,
+                        payment_method=payment_method_str
+                    )
+                    
+                    if payment_method_str not in ["CREDIT"]:
+                        treasury_service = TreasuryService(self.db)
+                        account_type = "CASH" if payment_method_str == "CASH" else "BANK"
+                        accounts = treasury_service.get_cash_accounts(company_id) if account_type == "CASH" else treasury_service.get_bank_accounts(company_id)
+                        
+                        if accounts:
+                            treasury_service.withdraw(
+                                account_type=account_type,
+                                account_id=accounts[0].id,
+                                amount=total_amount,
+                                description=f"Stock inicial - {db_product.name}",
+                                reference=f"SI-{db_product.id:06d}",
+                                company_id=company_id
+                            )
+
+            except ValueError as ve:
+                raise ve
             except Exception as e:
                 import logging
                 logging.error(f"Error creating accounting/treasury entry: {e}")

@@ -36,7 +36,7 @@ class AccountingService:
             .filter(ChartOfAccounts.company_id == company_id)
             .offset(skip)
             .limit(limit)
-            .all()
+            .unique().all()
         )
 
     def get_chart_of_account_by_id(
@@ -118,7 +118,7 @@ class AccountingService:
             .filter(JournalEntry.company_id == company_id)
             .offset(skip)
             .limit(limit)
-            .all()
+            .unique().all()
         )
 
     def get_journal_entry_by_id(
@@ -238,13 +238,13 @@ class AccountingService:
             total_debits = (
                 self.db.query(JournalEntryLine.debit_amount)
                 .filter(JournalEntryLine.journal_entry_id == je_id)
-                .all()
+                .unique().all()
             )
 
             total_credits = (
                 self.db.query(JournalEntryLine.credit_amount)
                 .filter(JournalEntryLine.journal_entry_id == je_id)
-                .all()
+                .unique().all()
             )
 
             sum_debits = (
@@ -279,7 +279,7 @@ class AccountingService:
             ChartOfAccounts.company_id == company_id,
         )
         
-        accounts = accounts_query.order_by(ChartOfAccounts.code).all()
+        accounts = accounts_query.order_by(ChartOfAccounts.code).unique().all()
 
         date_filter = [
             JournalEntry.company_id == company_id,
@@ -302,7 +302,7 @@ class AccountingService:
                 .join(JournalEntry, JournalEntryLine.journal_entry_id == JournalEntry.id)
                 .filter(JournalEntryLine.account_id == account.id)
                 .filter(and_(*date_filter))
-                .all()
+                .unique().all()
             )
             
             debits = sum([l.debit_amount for l in lines]) if lines else Decimal("0.00")
@@ -381,7 +381,7 @@ class AccountingService:
         if account_code:
             accounts_query = accounts_query.filter(ChartOfAccounts.code == account_code)
 
-        accounts = accounts_query.order_by(ChartOfAccounts.code).all()
+        accounts = accounts_query.order_by(ChartOfAccounts.code).unique().all()
 
         date_filter = []
         if date_from:
@@ -412,7 +412,7 @@ class AccountingService:
 
             lines_query = lines_query.order_by(JournalEntry.entry_date, JournalEntry.id)
 
-            raw_lines = lines_query.all()
+            raw_lines = lines_query.unique().all()
 
             saldo_inicial = Decimal("0.00")
             if date_from:
@@ -428,7 +428,7 @@ class AccountingService:
                         JournalEntry.is_posted == True,
                         JournalEntry.entry_date < date_from,
                     )
-                    .all()
+                    .unique().all()
                 )
                 for jel, je in initial_lines:
                     if account.account_type in ("ASSET", "EXPENSE"):
@@ -574,7 +574,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter))
             .order_by(Invoice.issue_date, Invoice.invoice_number)
-            .all()
+            .unique().all()
         )
 
         entries = []
@@ -699,7 +699,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter))
             .order_by(Invoice.issue_date, Invoice.invoice_number)
-            .all()
+            .unique().all()
         )
 
         p_date_filter = [
@@ -715,7 +715,7 @@ class AccountingService:
             .options(joinedload(Purchase.partner), joinedload(Purchase.items))
             .filter(and_(*p_date_filter))
             .order_by(Purchase.purchase_date, Purchase.purchase_number)
-            .all()
+            .unique().all()
         )
 
         je_date_filter = [
@@ -733,7 +733,7 @@ class AccountingService:
             .options(joinedload(JournalEntry.lines))
             .filter(and_(*je_date_filter))
             .order_by(JournalEntry.entry_date, JournalEntry.reference)
-            .all()
+            .unique().all()
         )
 
         all_purchases = invoices + dedicated_purchases
@@ -1006,7 +1006,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter_sales))
             .order_by(Invoice.issue_date)
-            .all()
+            .unique().all()
         )
 
         purchase_invoices = (
@@ -1014,7 +1014,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter_purchases))
             .order_by(Invoice.issue_date)
-            .all()
+            .unique().all()
         )
 
         entries = []
@@ -1185,7 +1185,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter))
             .order_by(Invoice.issue_date)
-            .all()
+            .unique().all()
         )
 
         entries = []
@@ -1725,6 +1725,7 @@ class AccountingService:
         partner_id: int,
         is_warranty: bool = False,
         source_type: str = "REPAIR",
+        total_cost: Decimal = Decimal("0.00"),
     ) -> Optional[JournalEntry]:
         """
         Create automatic journal entry from an invoice.
@@ -1822,6 +1823,32 @@ class AccountingService:
                         debit_amount=Decimal("0.00"),
                         credit_amount=tax_amount,
                         description=f"IVA generado - Factura {reference}",
+                    )
+                )
+
+        # COGS and Inventory reduction if total_cost > 0
+        if total_cost > Decimal("0.00"):
+            cost_of_sales = self._get_account_by_code(company_id, "6135")
+            inventory_account = self._get_account_by_code(company_id, "1140")
+            if cost_of_sales and inventory_account:
+                # Debit: Cost of Sales
+                self.db.add(
+                    JournalEntryLine(
+                        journal_entry_id=db_je.id,
+                        account_id=cost_of_sales.id,
+                        debit_amount=total_cost,
+                        credit_amount=Decimal("0.00"),
+                        description=f"Costo de ventas - Factura {reference}",
+                    )
+                )
+                # Credit: Inventory
+                self.db.add(
+                    JournalEntryLine(
+                        journal_entry_id=db_je.id,
+                        account_id=inventory_account.id,
+                        debit_amount=Decimal("0.00"),
+                        credit_amount=total_cost,
+                        description=f"Salida de inventario - Factura {reference}",
                     )
                 )
 
@@ -2093,7 +2120,7 @@ class AccountingService:
             ChartOfAccounts.id, ChartOfAccounts.code, ChartOfAccounts.name
         )
 
-        results = query.all()
+        results = query.unique().all()
         accounts = []
         for row in results:
             if nature == "deudora":

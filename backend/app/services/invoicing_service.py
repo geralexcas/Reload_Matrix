@@ -86,17 +86,23 @@ class InvoicingService:
         Create automatic journal entry when invoice is created.
         """
         from app.services.accounting_service import AccountingService
+        from app.models.sql.inventory import Product
 
         accounting_service = AccountingService(self.db)
 
         # Calculate subtotal and tax from items
         subtotal = Decimal("0.00")
         tax_amount = Decimal("0.00")
+        total_cost = Decimal("0.00")
 
         if hasattr(db_invoice, "items") and db_invoice.items:
             for item in db_invoice.items:
                 subtotal += item.line_total
                 tax_amount += item.tax_amount
+                if item.product_id:
+                    product = self.db.query(Product).filter(Product.id == item.product_id).first()
+                    if product and product.purchase_price:
+                        total_cost += Decimal(str(product.purchase_price)) * Decimal(str(item.quantity))
         else:
             subtotal = db_invoice.total_amount
             tax_amount = Decimal("0.00")
@@ -122,6 +128,7 @@ class InvoicingService:
             partner_id=db_invoice.partner_id,
             is_warranty=False,
             source_type="INVOICE",
+            total_cost=total_cost,
         )
 
     def create_invoice(
