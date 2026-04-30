@@ -193,8 +193,8 @@ export default {
             companyId: companyId.value
           })
           
-          // If we came from repair, we might want to store the new ID to select it
-          if (route.query.redirect === '/repair') {
+          // If we came from repair or invoicing, we might want to store the new ID to select it
+          if (route.query.redirect === '/repair' || route.query.redirect === '/invoicing') {
             sessionStorage.setItem('lastCreatedPartnerId', res.data.id)
           }
         }

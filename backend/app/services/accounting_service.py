@@ -718,6 +718,24 @@ class AccountingService:
             .all()
         )
 
+        je_date_filter = [
+            JournalEntry.company_id == company_id,
+            JournalEntry.reference.like("SI-%"),
+            JournalEntry.is_posted == True
+        ]
+        if date_from:
+            je_date_filter.append(sql_func.date(JournalEntry.entry_date) >= date_from.date())
+        if date_to:
+            je_date_filter.append(sql_func.date(JournalEntry.entry_date) <= date_to.date())
+            
+        initial_stock_jes = (
+            self.db.query(JournalEntry)
+            .options(joinedload(JournalEntry.lines))
+            .filter(and_(*je_date_filter))
+            .order_by(JournalEntry.entry_date, JournalEntry.reference)
+            .all()
+        )
+
         all_purchases = invoices + dedicated_purchases
         entries = []
         total_base_iva_19 = Decimal("0.00")
@@ -791,6 +809,37 @@ class AccountingService:
             total_retencion_iva += retencion_iva
             total_retencion_fuente += retencion_fuente
             total_facturas += total_invoice
+
+        for je in initial_stock_jes:
+            total_amount = Decimal("0.00")
+            for line in je.lines:
+                if line.debit_amount > 0:
+                    total_amount += line.debit_amount
+            
+            # Initial stock entries are usually purchases without IVA broken down (unless we expand it later)
+            entries.append(
+                {
+                    "invoice_id": f"je_{je.id}",
+                    "invoice_number": je.reference,
+                    "invoice_date": je.entry_date,
+                    "partner_nit": "N/A",
+                    "partner_name": "Sin Proveedor (Stock Inicial)",
+                    "partner_responsibility": "NO RESPONSABLE",
+                    "base_iva_19": Decimal("0.00"),
+                    "iva_19": Decimal("0.00"),
+                    "base_iva_5": Decimal("0.00"),
+                    "iva_5": Decimal("0.00"),
+                    "base_no_iva": total_amount,
+                    "total_iva": Decimal("0.00"),
+                    "base_retencion": Decimal("0.00"),
+                    "retencion_iva": Decimal("0.00"),
+                    "retencion_fuente": Decimal("0.00"),
+                    "total_invoice": total_amount,
+                    "estado_dian": "NO_APLICA",
+                }
+            )
+            total_base_no_iva += total_amount
+            total_facturas += total_amount
 
         return {
             "company_id": company_id,

@@ -299,68 +299,6 @@
     </div>
 
     <!-- Modales Adicionales -->
-    <!-- Modal Crear Cliente/Proveedor -->
-    <div class="modal-overlay" v-if="showPartnerForm" @click.self="showPartnerForm = false" style="z-index: 300;">
-      <div class="modal">
-        <h3>Nuevo Cliente/Proveedor</h3>
-        <form @submit.prevent="onPartnerSubmit">
-          <div class="form-row-grid">
-            <div class="form-group">
-              <label>NIT/CC:</label>
-              <input v-model="partnerForm.nit" required placeholder="Numero de id" />
-            </div>
-            <div class="form-group">
-              <label>DV:</label>
-              <input v-model="partnerForm.dv" maxlength="1" placeholder="Solo empresas" />
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Nombre o Razón Social:</label>
-            <input v-model="partnerForm.name" required />
-          </div>
-          <div class="form-row-grid">
-            <div class="form-group">
-              <label>Tipo:</label>
-              <select v-model="partnerForm.partner_type" required>
-                <option value="CUSTOMER">Cliente</option>
-                <option value="SUPPLIER">Proveedor</option>
-                <option value="BOTH">Ambos</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Responsabilidad Fiscal:</label>
-              <select v-model="partnerForm.responsibility_fiscal" required>
-                <option value="NO RESPONSABLE">No Responsable</option>
-                <option value="RESPONSABLE IVA">Responsable de IVA</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row-grid">
-            <div class="form-group">
-              <label>Email:</label>
-              <input v-model="partnerForm.email" type="email" />
-            </div>
-            <div class="form-group">
-              <label>Teléfono:</label>
-              <input v-model="partnerForm.phone" />
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Dirección:</label>
-            <input v-model="partnerForm.address" />
-          </div>
-          <div v-if="error" class="error-message p-2 mb-2 bg-danger text-white rounded">{{ error }}</div>
-          <div class="form-actions text-right mt-4">
-            <button type="button" class="btn btn-secondary mr-2" @click="showPartnerForm = false">Cancelar</button>
-            <button type="submit" class="btn btn-primary" :disabled="submittingPartner">
-              {{ submittingPartner ? 'Guardando...' : 'Guardar y Usar' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-
     <!-- Modal de Impresión -->
     <InvoicePrintModal 
       v-if="showPrintModal"
@@ -402,15 +340,9 @@ export default {
       treasuryAccounts: { cash_accounts: [], bank_accounts: [] },
       loading: true,
       showForm: false,
-      showPartnerForm: false,
       submitting: false,
-      submittingPartner: false,
       error: null,
       searchQuery: '',
-      partnerForm: {
-        nit: '', dv: '', name: '', partner_type: 'CUSTOMER',
-        responsibility_fiscal: 'NO RESPONSABLE', email: '', phone: '', address: ''
-      },
       form: {
         invoice_type: 'SALE',
         partner_id: '',
@@ -725,45 +657,10 @@ export default {
       }
     },
     openPartnerForm() {
-      this.partnerForm.partner_type = this.form.invoice_type === 'SALE' ? 'CUSTOMER' : 'SUPPLIER'
-      this.showPartnerForm = true
-    },
-    async onPartnerSubmit() {
-      this.submittingPartner = true
-      this.error = null
-      try {
-        const payload = {
-          nit: this.partnerForm.nit,
-          dv: this.partnerForm.dv || null,
-          name: this.partnerForm.name,
-          partner_type: this.partnerForm.partner_type,
-          responsibility_fiscal: this.partnerForm.responsibility_fiscal,
-          email: this.partnerForm.email || null,
-          phone: this.partnerForm.phone || null,
-          address: this.partnerForm.address || null,
-          city: '',
-          department: '',
-          country: 'Colombia'
-        }
-        
-        const response = await api.post('/api/v1/partners/', payload, {
-          params: { company_id: this.companyId }
-        })
-        
-        const newPartner = response.data
-        await this.loadPartners()
-        this.form.partner_id = newPartner.id
-        this.showPartnerForm = false
-        
-        this.partnerForm = {
-          nit: '', dv: '', name: '', partner_type: 'CUSTOMER',
-          responsibility_fiscal: 'NO RESPONSABLE', email: '', phone: '', address: ''
-        }
-      } catch (err) {
-        this.error = err.response?.data?.detail || 'Error al crear socio'
-      } finally {
-        this.submittingPartner = false
-      }
+      // Save current form state to session storage so we don't lose it
+      sessionStorage.setItem('invoicingDraftForm', JSON.stringify(this.form));
+      sessionStorage.setItem('invoicingShowForm', 'true');
+      this.$router.push('/partners/new?redirect=/invoicing');
     },
     async confirmCancelInvoice(invoice) {
       const message = `¡ADVERTENCIA! Anular la factura ${invoice.invoice_number} revertirá el stock de inventario y generará un asiento contable de reversión. ¿Desea continuar?`
@@ -788,6 +685,28 @@ export default {
       this.loadProducts(),
       this.loadTreasuryAccounts()
     ])
+
+    // Restore draft if exists
+    const draft = sessionStorage.getItem('invoicingDraftForm');
+    const showDraft = sessionStorage.getItem('invoicingShowForm');
+    if (draft && showDraft === 'true') {
+      try {
+        this.form = JSON.parse(draft);
+        this.showForm = true;
+      } catch (e) {
+        console.error('Error parsing draft invoice form', e);
+      }
+      sessionStorage.removeItem('invoicingDraftForm');
+      sessionStorage.removeItem('invoicingShowForm');
+    }
+
+    const lastPartnerId = sessionStorage.getItem('lastCreatedPartnerId');
+    if (lastPartnerId) {
+      this.form.partner_id = parseInt(lastPartnerId);
+      this.showForm = true; // ensure form is visible
+      sessionStorage.removeItem('lastCreatedPartnerId');
+    }
+
     this.loading = false
   }
 }
