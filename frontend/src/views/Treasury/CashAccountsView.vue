@@ -49,6 +49,16 @@
             <label>Monto máximo caja menor:</label>
             <input v-model.number="createForm.max_petty_cash_amount" type="number" step="0.01" />
           </div>
+          <div class="form-group">
+            <label>Cuenta contable vinculada:</label>
+            <select v-model="createForm.linked_account_id">
+              <option :value="null">Seleccionar cuenta contable...</option>
+              <option v-for="acct in treasuryAccounts" :key="acct.id" :value="acct.id">
+                {{ acct.code }} - {{ acct.name }}
+              </option>
+            </select>
+            <small class="hint">Cuenta del plan de cuentas donde se registrarán los movimientos</small>
+          </div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">Crear</button>
             <button type="button" class="btn" @click="showCreateForm = false">Cancelar</button>
@@ -89,15 +99,21 @@ export default {
       showTxForm: false,
       txType: 'deposit',
       selectedAccount: null,
-      createForm: { name: '', account_type: 'MAIN_CASH', initial_balance: 0, max_petty_cash_amount: null },
+      createForm: { name: '', account_type: 'MAIN_CASH', initial_balance: 0, max_petty_cash_amount: null, linked_account_id: null },
       txForm: { amount: 0, description: '' }
     }
   },
   computed: {
-    accounts() { return this.$store.state.treasury.cashAccounts }
+    accounts() { return this.$store.state.treasury.cashAccounts },
+    treasuryAccounts() {
+      const all = this.$store.state.accounting.chartOfAccounts || []
+      const treasuryCodes = ['111001', '111002', '111003', '111004', '111010', '111011', '111012', '111020', '111030', '111040']
+      return all.filter(a => treasuryCodes.includes(a.code))
+    }
   },
   mounted() {
     this.$store.dispatch('treasury/fetchCashAccounts')
+    this.$store.dispatch('accounting/fetchChartOfAccounts')
   },
   methods: {
     formatCurrency(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(v || 0) },
@@ -106,7 +122,7 @@ export default {
       try {
         await this.$store.dispatch('treasury/createCashAccount', this.createForm)
         this.showCreateForm = false
-        this.createForm = { name: '', account_type: 'MAIN_CASH', initial_balance: 0, max_petty_cash_amount: null }
+        this.createForm = { name: '', account_type: 'MAIN_CASH', initial_balance: 0, max_petty_cash_amount: null, linked_account_id: null }
         this.$store.dispatch('treasury/fetchCashAccounts')
       } catch (e) { alert(e.response?.data?.detail || 'Error') }
     },
@@ -154,6 +170,7 @@ export default {
 .form-group { margin-bottom: 12px; }
 .form-group label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 0.85rem; }
 .form-group input, .form-group select { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+.hint { display: block; color: #999; font-size: 0.75rem; margin-top: 4px; }
 .form-actions { display: flex; gap: 8px; margin-top: 16px; }
 .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
 .btn-primary { background: #667eea; color: #fff; }

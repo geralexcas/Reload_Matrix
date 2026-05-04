@@ -142,45 +142,61 @@ def repair_treasury(company_id: int, dry_run: bool = False, skip_refs: list = No
         print(f"📋 Asientos publicados encontrados: {len(posted_entries)}\n")
 
         repaired = 0
-        skipped = 0
 
         for je in posted_entries:
-            # Omitir si el usuario especificó referencias a saltar
+            # Skip if user requested to ignore this JE
             if skip_refs and je.reference and any(je.reference.startswith(r) for r in skip_refs):
                 print(f"  ⏩ JE #{je.id} ({je.reference}) → OMITIDO por filtro de referencia")
+                continue
+
+            if je.id in existing_tx_je_ids:
+                print(f"  ⏭  JE #{je.id} ({je.description[:40]}) → YA PROCESADO")
                 continue
 
             lines = db.query(JournalEntryLine).filter(
                 JournalEntryLine.journal_entry_id == je.id
             ).all()
 
+            # ── Aggregate net change per treasury account for this JE ──────────
+            # A single JE can have multiple lines affecting the same treasury
+            # account (e.g. initial balance entries with both debit AND credit).
+            # We sum them all and apply a single transaction with the net effect.
+            from collections import defaultdict
+            net_per_account = defaultdict(lambda: {"acct": None, "type": None, "net": Decimal("0.00"), "desc": ""})
+
             for line in lines:
                 if not line.account_id:
                     continue
-
                 treasury_acct, acct_type = get_treasury_account(db, line.account_id, company_id)
                 if not treasury_acct:
                     continue
 
-                already_exists = je.id in existing_tx_je_ids
-                net_change = line.debit_amount - line.credit_amount
+                key = (acct_type, treasury_acct.id)
+                net_per_account[key]["acct"] = treasury_acct
+                net_per_account[key]["type"] = acct_type
+                net_per_account[key]["net"] += line.debit_amount - line.credit_amount
+                net_per_account[key]["desc"] = line.description or je.description
+
+            if not net_per_account:
+                continue  # No treasury accounts affected by this JE
+
+            for (acct_type, acct_id), info in net_per_account.items():
+                treasury_acct = info["acct"]
+                net_change = info["net"]
+                acct_name = treasury_acct.name
+
+                line_coa = db.query(ChartOfAccounts).filter(
+                    ChartOfAccounts.id == treasury_acct.linked_account_id
+                ).first()
+                code = line_coa.code if line_coa else "?"
 
                 if net_change == Decimal("0.00"):
-                    continue
-
-                acct_name = treasury_acct.name
-                line_coa = db.query(ChartOfAccounts).filter(ChartOfAccounts.id == line.account_id).first()
-                code = line_coa.code if line_coa else '?'
-
-                if already_exists:
-                    print(f"  ⏭  JE #{je.id} ({je.description[:40]}) → {acct_type} '{acct_name}' [CUENTA {code}] → YA PROCESADO")
-                    skipped += 1
+                    print(f"  ➖ JE #{je.id} '{je.description[:35]}' → {acct_type} '{acct_name}' [{code}] | NET=0 (sin efecto en saldo, omitido)")
                     continue
 
                 tx_type = "DEPOSIT" if net_change > 0 else "WITHDRAWAL"
 
                 if dry_run:
-                    # Simulate cumulative balance
                     if acct_type == "BANK":
                         bal_before = simulated_bank_balances.get(treasury_acct.id, treasury_acct.current_balance)
                         simulated_bank_balances[treasury_acct.id] = bal_before + net_change
@@ -202,16 +218,18 @@ def repair_treasury(company_id: int, dry_run: bool = False, skip_refs: list = No
                         cash_account_id=treasury_acct.id if acct_type == "CASH" else None,
                         transaction_type=tx_type,
                         amount=abs(net_change),
-                        description=line.description or je.description,
+                        description=info["desc"] or je.description,
                         reference=je.reference or f"REPAIR-JE-{je.id}",
                         journal_entry_id=je.id,
                         balance_after=bal_after,
                     )
                     db.add(tx)
-                    existing_tx_je_ids.add(je.id)
                     print(f"  ✅ JE #{je.id} '{je.description[:35]}' → {acct_type} '{acct_name}' [{code}] | ${abs(net_change):,.2f} {tx_type} | ${bal_before:,.2f} → ${bal_after:,.2f}")
 
                 repaired += 1
+
+            existing_tx_je_ids.add(je.id)
+
 
         if not dry_run and repaired > 0:
             db.commit()
