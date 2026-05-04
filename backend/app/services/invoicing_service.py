@@ -81,7 +81,9 @@ class InvoicingService:
             "ley_factura": ley_factura,
         }
 
-    def _create_automatic_journal_entry(self, db_invoice: Invoice, company_id: int):
+    def _create_automatic_journal_entry(
+        self, db_invoice: Invoice, company_id: int, is_paid: bool = False, payment_method: Optional[str] = None
+    ):
         """
         Create automatic journal entry when invoice is created.
         """
@@ -129,6 +131,8 @@ class InvoicingService:
             is_warranty=False,
             source_type="INVOICE",
             total_cost=total_cost,
+            is_paid=is_paid,
+            payment_method=payment_method,
         )
 
     def create_invoice(
@@ -240,7 +244,12 @@ class InvoicingService:
                 )
 
         # Create automatic journal entry
-        self._create_automatic_journal_entry(db_invoice, company_id)
+        self._create_automatic_journal_entry(
+            db_invoice, 
+            company_id, 
+            is_paid=invoice_with_items.is_paid, 
+            payment_method=invoice_with_items.payment_method
+        )
         self.db.commit()
         self.db.refresh(db_invoice)
 
@@ -280,17 +289,38 @@ class InvoicingService:
                         description=f"Pago de Factura {db_invoice.invoice_number}",
                         company_id=company_id
                     )
-                elif invoice_with_items.payment_account_type and invoice_with_items.payment_account_id:
+                else:
                     from app.services.treasury_service import TreasuryService
                     treasury_service = TreasuryService(self.db)
-                    treasury_service.deposit(
-                        account_type=invoice_with_items.payment_account_type,
-                        account_id=invoice_with_items.payment_account_id,
-                        amount=remaining_to_pay,
-                        description=f"Pago - Factura {db_invoice.invoice_number}",
-                        reference=f"INV-{db_invoice.id}",
-                        company_id=company_id
-                    )
+                    
+                    acct_type = invoice_with_items.payment_account_type
+                    acct_id = invoice_with_items.payment_account_id
+                    
+                    if not acct_type or not acct_id:
+                        if invoice_with_items.payment_method == "CASH":
+                            cash_accounts = treasury_service.get_cash_accounts(company_id)
+                            if cash_accounts:
+                                acct_type = "CASH"
+                                acct_id = cash_accounts[0].id
+                        elif invoice_with_items.payment_method in ("BANK_TRANSFER", "CARD", "TRANSFER"):
+                            try:
+                                bank_accounts = treasury_service.get_bank_accounts(company_id)
+                                if bank_accounts:
+                                    acct_type = "BANK"
+                                    acct_id = bank_accounts[0].id
+                            except AttributeError:
+                                pass # In case get_bank_accounts isn't available
+
+                    if acct_type and acct_id:
+                        treasury_service.deposit(
+                            account_type=acct_type,
+                            account_id=acct_id,
+                            amount=remaining_to_pay,
+                            description=f"Pago - Factura {db_invoice.invoice_number}",
+                            reference=f"INV-{db_invoice.id}",
+                            company_id=company_id,
+                            skip_journal_entry=True
+                        )
 
         return db_invoice
 

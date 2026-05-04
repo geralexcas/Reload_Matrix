@@ -1874,6 +1874,8 @@ class AccountingService:
         is_warranty: bool = False,
         source_type: str = "REPAIR",
         total_cost: Decimal = Decimal("0.00"),
+        is_paid: bool = False,
+        payment_method: Optional[str] = None,
     ) -> Optional[JournalEntry]:
         """
         Create automatic journal entry from an invoice.
@@ -1971,6 +1973,39 @@ class AccountingService:
                         debit_amount=Decimal("0.00"),
                         credit_amount=tax_amount,
                         description=f"IVA generado - Factura {reference}",
+                    )
+                )
+
+        # If invoice is paid, create lines moving amount from Accounts Receivable to Cash/Bank
+        if is_paid:
+            cash_account = self._get_account_by_code(company_id, "111001")
+            bank_account = self._get_account_by_code(company_id, "111010")
+            
+            payment_account = accounts_receivable # Fallback
+            if payment_method == "CASH" and cash_account:
+                payment_account = cash_account
+            elif payment_method in ("BANK_TRANSFER", "CARD", "TRANSFER") and bank_account:
+                payment_account = bank_account
+
+            if payment_account and payment_account.id != accounts_receivable.id:
+                # Credit Accounts Receivable
+                self.db.add(
+                    JournalEntryLine(
+                        journal_entry_id=db_je.id,
+                        account_id=accounts_receivable.id,
+                        debit_amount=Decimal("0.00"),
+                        credit_amount=total_amount,
+                        description=f"Recaudo - Factura {reference}",
+                    )
+                )
+                # Debit Cash/Bank
+                self.db.add(
+                    JournalEntryLine(
+                        journal_entry_id=db_je.id,
+                        account_id=payment_account.id,
+                        debit_amount=total_amount,
+                        credit_amount=Decimal("0.00"),
+                        description=f"Ingreso de dinero - {payment_method}",
                     )
                 )
 

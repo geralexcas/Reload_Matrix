@@ -275,6 +275,7 @@ class TreasuryService:
         reference: str,
         company_id: int,
         user_id: Optional[int] = None,
+        skip_journal_entry: bool = False,
     ) -> TreasuryTransaction:
         je = None
 
@@ -286,7 +287,7 @@ class TreasuryService:
             account.current_balance += amount
             balance_after = account.current_balance
 
-            if account.linked_account_id:
+            if account.linked_account_id and not skip_journal_entry:
                 cash_account = self._get_account_by_code(company_id, "111001")
                 linked_acct_id = account.linked_account_id
                 contra_id = cash_account.id if cash_account else linked_acct_id
@@ -319,7 +320,9 @@ class TreasuryService:
             account.current_balance += amount
             balance_after = account.current_balance
 
-            if account.linked_account_id:
+            if account.linked_account_id and not skip_journal_entry:
+                # Si no se salta el asiento, debemos encontrar la cuenta de contrapartida adecuada
+                # Por defecto usaremos una cuenta puente o evitar doble registro
                 je = self._create_journal_entry(
                     company_id=company_id,
                     description=description or f"Ingreso a {account.name}",
@@ -376,6 +379,7 @@ class TreasuryService:
         reference: str,
         company_id: int,
         user_id: Optional[int] = None,
+        skip_journal_entry: bool = False,
     ) -> TreasuryTransaction:
         if account_type == "BANK":
             account = self.get_bank_account_by_id(account_id, company_id)
@@ -395,7 +399,7 @@ class TreasuryService:
         balance_after = account.current_balance
 
         je = None
-        if account.linked_account_id:
+        if account.linked_account_id and not skip_journal_entry:
             expense_account = self._get_account_by_code(company_id, "5400")
             contra_id = (
                 expense_account.id if expense_account else account.linked_account_id
