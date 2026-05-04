@@ -235,33 +235,155 @@ class AccountingService:
         db_je = self.get_journal_entry_by_id(je_id, company_id)
         if db_je and not db_je.is_posted:
             # Validate that debits equal credits
-            total_debits = (
-                self.db.query(JournalEntryLine.debit_amount)
+            lines = (
+                self.db.query(JournalEntryLine)
                 .filter(JournalEntryLine.journal_entry_id == je_id)
                 .all()
             )
 
-            total_credits = (
-                self.db.query(JournalEntryLine.credit_amount)
-                .filter(JournalEntryLine.journal_entry_id == je_id)
-                .all()
-            )
-
-            sum_debits = (
-                sum([line[0] for line in total_debits])
-                if total_debits
-                else Decimal("0.00")
-            )
-            sum_credits = (
-                sum([line[0] for line in total_credits])
-                if total_credits
-                else Decimal("0.00")
-            )
+            sum_debits = sum(line.debit_amount for line in lines) if lines else Decimal("0.00")
+            sum_credits = sum(line.credit_amount for line in lines) if lines else Decimal("0.00")
 
             if sum_debits != sum_credits:
                 raise ValueError("Journal entry must be balanced (debits = credits)")
 
             db_je.is_posted = True
+
+            # ── Sync Treasury Balances ──────────────────────────────────────────
+            # After posting, check if any line affects a treasury account (bank/cash)
+            # and update the current_balance accordingly.
+            from app.models.sql.accounting.bank_account import BankAccount
+            from app.models.sql.accounting.cash_account import CashAccount
+            from app.models.sql.accounting.treasury_transaction import TreasuryTransaction
+
+            for line in lines:
+                if not line.account_id:
+                    continue
+
+                # Get the chart of accounts entry for this line
+                line_coa = (
+                    self.db.query(ChartOfAccounts)
+                    .filter(ChartOfAccounts.id == line.account_id)
+                    .first()
+                )
+                if not line_coa:
+                    continue
+
+                line_code = line_coa.code  # e.g. "1110" or "111011"
+
+                # ── Pass 1: exact match by linked_account_id ──────────────────
+                bank_acct = (
+                    self.db.query(BankAccount)
+                    .filter(
+                        BankAccount.linked_account_id == line.account_id,
+                        BankAccount.company_id == company_id,
+                        BankAccount.is_active == True,
+                    )
+                    .first()
+                )
+
+                # ── Pass 2: fallback – match by account code prefix ───────────
+                # If the bank's linked account code is a prefix of the line's code
+                # (e.g. bank linked to '1110', line uses '111011'), match it.
+                if not bank_acct and line_code:
+                    all_bank_accts = (
+                        self.db.query(BankAccount)
+                        .filter(
+                            BankAccount.company_id == company_id,
+                            BankAccount.is_active == True,
+                            BankAccount.linked_account_id != None,
+                        )
+                        .all()
+                    )
+                    for candidate in all_bank_accts:
+                        if candidate.linked_account_id:
+                            candidate_coa = (
+                                self.db.query(ChartOfAccounts)
+                                .filter(ChartOfAccounts.id == candidate.linked_account_id)
+                                .first()
+                            )
+                            if candidate_coa:
+                                c_code = candidate_coa.code
+                                # Match if one code is a prefix of the other
+                                if line_code.startswith(c_code) or c_code.startswith(line_code):
+                                    bank_acct = candidate
+                                    break
+
+                if bank_acct:
+                    net_change = line.debit_amount - line.credit_amount
+                    bank_acct.current_balance += net_change
+                    if net_change != Decimal("0.00"):
+                        tx_type = "DEPOSIT" if net_change > 0 else "WITHDRAWAL"
+                        tx = TreasuryTransaction(
+                            company_id=company_id,
+                            account_type="BANK",
+                            bank_account_id=bank_acct.id,
+                            cash_account_id=None,
+                            transaction_type=tx_type,
+                            amount=abs(net_change),
+                            description=line.description or db_je.description,
+                            reference=db_je.reference or f"JE-{je_id}",
+                            journal_entry_id=db_je.id,
+                            balance_after=bank_acct.current_balance,
+                        )
+                        self.db.add(tx)
+                    continue  # A line shouldn't be linked to both bank and cash
+
+                # ── Pass 1: exact match for CashAccount ───────────────────────
+                cash_acct = (
+                    self.db.query(CashAccount)
+                    .filter(
+                        CashAccount.linked_account_id == line.account_id,
+                        CashAccount.company_id == company_id,
+                        CashAccount.is_active == True,
+                    )
+                    .first()
+                )
+
+                # ── Pass 2: fallback by code prefix for CashAccount ───────────
+                if not cash_acct and line_code:
+                    all_cash_accts = (
+                        self.db.query(CashAccount)
+                        .filter(
+                            CashAccount.company_id == company_id,
+                            CashAccount.is_active == True,
+                            CashAccount.linked_account_id != None,
+                        )
+                        .all()
+                    )
+                    for candidate in all_cash_accts:
+                        if candidate.linked_account_id:
+                            candidate_coa = (
+                                self.db.query(ChartOfAccounts)
+                                .filter(ChartOfAccounts.id == candidate.linked_account_id)
+                                .first()
+                            )
+                            if candidate_coa:
+                                c_code = candidate_coa.code
+                                if line_code.startswith(c_code) or c_code.startswith(line_code):
+                                    cash_acct = candidate
+                                    break
+
+                if cash_acct:
+                    net_change = line.debit_amount - line.credit_amount
+                    cash_acct.current_balance += net_change
+                    if net_change != Decimal("0.00"):
+                        tx_type = "DEPOSIT" if net_change > 0 else "WITHDRAWAL"
+                        tx = TreasuryTransaction(
+                            company_id=company_id,
+                            account_type="CASH",
+                            bank_account_id=None,
+                            cash_account_id=cash_acct.id,
+                            transaction_type=tx_type,
+                            amount=abs(net_change),
+                            description=line.description or db_je.description,
+                            reference=db_je.reference or f"JE-{je_id}",
+                            journal_entry_id=db_je.id,
+                            balance_after=cash_acct.current_balance,
+                        )
+                        self.db.add(tx)
+            # ───────────────────────────────────────────────────────────────────
+
         self.db.commit()
         self.db.refresh(db_je)
         return db_je

@@ -2,6 +2,9 @@
   <div class="treasury-index">
     <div class="view-header">
       <h2>Tesorería</h2>
+      <button class="btn-refresh" @click="refresh" :class="{ spinning: loading }" title="Actualizar saldos">
+        🔄
+      </button>
     </div>
 
     <div class="summary-cards" v-if="summary">
@@ -65,14 +68,28 @@ export default {
   computed: {
     summary() {
       return this.$store.state.treasury.treasurySummary
+    },
+    loading() {
+      return this.$store.state.treasury.loading
     }
   },
   mounted() {
-    this.$store.dispatch('treasury/fetchTreasurySummary')
+    this.refresh()
+  },
+  // Refresh data every time we navigate back to this page (even if component is kept-alive)
+  activated() {
+    this.refresh()
+  },
+  // Also refresh when the route changes to this view
+  beforeRouteEnter(to, from, next) {
+    next(vm => vm.refresh())
   },
   methods: {
     formatCurrency(value) {
       return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(value || 0)
+    },
+    async refresh() {
+      await this.$store.dispatch('treasury/fetchTreasurySummary')
     }
   }
 }
@@ -80,8 +97,25 @@ export default {
 
 <style scoped>
 .treasury-index { padding: 20px; }
-.view-header { margin-bottom: 24px; }
+.view-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .view-header h2 { margin: 0; font-size: 1.8rem; color: #1a1a2e; }
+.btn-refresh {
+  background: none;
+  border: 2px solid #667eea;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.btn-refresh:hover { background: #f0f4ff; transform: rotate(180deg); }
+.btn-refresh.spinning { animation: spin 0.8s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
 .summary-card { padding: 20px; border-radius: 12px; color: #fff; }
 .summary-card h3 { margin: 0 0 8px; font-size: 0.9rem; opacity: 0.9; }
