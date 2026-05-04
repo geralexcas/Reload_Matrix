@@ -30,11 +30,13 @@ class ProductBase(BaseModel):
     )
     is_active: bool = True
 
-    @field_validator("barcode")
+    @field_validator("barcode", mode="before")
     @classmethod
     def barcode_must_be_alphanumeric_or_empty(cls, v):
-        if v is not None and len(v) > 0:
-            if not v.replace("-", "").replace(" ", "").isalnum():
+        if v == "":
+            return None
+        if v is not None:
+            if not str(v).replace("-", "").replace(" ", "").isalnum():
                 raise ValueError(
                     "Barcode must be alphanumeric (letters, numbers, dashes)"
                 )

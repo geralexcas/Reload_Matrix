@@ -209,6 +209,25 @@ export default {
 
     onMounted(() => {
       fetchPartner()
+      
+      if (route.query.fromPdf) {
+        const draft = sessionStorage.getItem('draftPdfPartnerData')
+        if (draft) {
+          try {
+            const parsed = JSON.parse(draft)
+            form.value.name = parsed.name || ''
+            form.value.document_number = parsed.nit || ''
+            form.value.document_type = 'NIT'
+            form.value.partner_type = 'SUPPLIER'
+            if (parsed.email && parsed.email !== 'null') form.value.email = parsed.email
+            if (parsed.phone && parsed.phone !== 'null') form.value.phone = parsed.phone
+            if (parsed.address && parsed.address !== 'null') form.value.address = parsed.address
+          } catch(e) {
+            console.error('Error parsing draftPdfPartnerData', e)
+          }
+          sessionStorage.removeItem('draftPdfPartnerData')
+        }
+      }
     })
 
     return {

@@ -86,6 +86,7 @@ class PurchaseItem(Base):
     description = Column(String(255), nullable=False)
     quantity = Column(Numeric(10, 2), nullable=False)
     unit_price = Column(Numeric(15, 2), nullable=False)
+    serial_number = Column(String(255), nullable=True)
     discount_percent = Column(Numeric(5, 2), default=0.00)
     discount_amount = Column(Numeric(15, 2), default=0.00)
     tax_rate = Column(Numeric(5, 2), default=0.00)

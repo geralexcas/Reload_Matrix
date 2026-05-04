@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # UVT 2026 (Colombia) - Valor Unidad de Valor Tributario
     UVT_VALUE: float = 49738.0
 
+    # AI Integration
+    GEMINI_API_KEY: str = ""
+
     model_config = {
         "case_sensitive": True,
         "env_file": ".env",

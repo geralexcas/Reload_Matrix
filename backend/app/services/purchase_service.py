@@ -9,6 +9,12 @@ from app.schemas import purchase as purchase_schema
 from app.services.inventory_service import InventoryService
 from app.services.accounting_service import AccountingService
 from app.models.sql.accounting.journal_entry import JournalEntry
+import fitz
+from google import genai
+from google.genai import types
+import json
+from app.core.config import settings
+
 
 
 class PurchaseService:
@@ -565,3 +571,107 @@ class PurchaseService:
 
         paid = sum(p.amount for p in purchase.payments)
         return purchase.total_amount - paid
+
+    def extract_from_pdf(self, file_content: bytes, company_id: int) -> dict:
+        """Extract partner and items from a purchase invoice PDF using Gemini"""
+        # 1. Extract text using PyMuPDF
+        doc = fitz.open(stream=file_content, filetype="pdf")
+        text = ""
+        for page in doc:
+            text += page.get_text()
+        doc.close()
+
+        if not text.strip():
+            raise ValueError("No se pudo extraer texto del PDF o está vacío.")
+
+        # 2. Call Gemini API
+        if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "tu_clave_de_gemini_aqui":
+            raise ValueError("GEMINI_API_KEY no es válida. Obtén una clave real en Google AI Studio.")
+            
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        
+        prompt = f"""
+        A continuación tienes una factura de compra (archivo PDF) y el texto bruto extraído de la misma.
+        Tu tarea es extraer la información del proveedor y los productos comprados.
+        IMPORTANTE: Para la descripción del producto, extrae EXACTAMENTE el texto original que ves en la factura, no resumas ni recortes la descripción. Si incluye referencias como DDR4 4GB 3200MHZ, inclúyelas tal cual.
+        
+        Responde ÚNICAMENTE con un objeto JSON con la siguiente estructura (sin formato Markdown, sin texto adicional):
+        {{
+            "purchase_number": "Número de la factura (solo el número o código, ej: ATPE 24468)",
+            "partner_data": {{
+                "nit": "Número de NIT o documento (solo números o guiones)",
+                "name": "Nombre completo del proveedor",
+                "email": "Email del proveedor si existe, o null",
+                "phone": "Teléfono si existe, o null",
+                "address": "Dirección si existe, o null"
+            }},
+            "items": [
+                {{
+                    "description": "Copia EXACTA del nombre y características del producto (sin resumir)",
+                    "quantity": cantidad en número,
+                    "unit_price": precio unitario en número sin símbolos,
+                    "tax_rate": porcentaje de IVA (ej. 19) o 0,
+                    "serial_number": "El número de serie del producto (suele empezar por SN:, SN::, o S/N). Debes extraerlo sí o sí si aparece bajo la descripción. Ej: BWA43100001578. Si no hay, null"
+                }}
+            ]
+        }}
+        
+        Texto extraído como respaldo:
+        {text}
+        """
+        
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=[
+                    types.Part.from_bytes(data=file_content, mime_type='application/pdf'),
+                    prompt
+                ],
+            )
+            response_text = response.text.strip()
+        except Exception as e:
+            raise ValueError(f"Error de comunicación con Gemini: {str(e)}")
+        
+        # Clean up markdown if Gemini returned it despite the instruction
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+            
+        try:
+            extracted_data = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Error parseando la respuesta de Gemini: {e}")
+            
+        partner_data = extracted_data.get("partner_data", {})
+        nit = partner_data.get("nit", "")
+        
+        partner_exists = False
+        partner_id = None
+        
+        # Clean NIT for search (remove dashes and letters)
+        clean_nit = ''.join(filter(str.isdigit, str(nit))) if nit else ""
+        
+        if clean_nit:
+            # Look for partner
+            db_partner = self.db.query(Partner).filter(
+                Partner.company_id == company_id,
+                Partner.nit.like(f"%{clean_nit}%")
+            ).first()
+            
+            if db_partner:
+                partner_exists = True
+                partner_id = db_partner.id
+                # Overwrite extracted data with real DB data to be safe
+                partner_data = {
+                    "id": db_partner.id,
+                    "nit": db_partner.nit,
+                    "name": db_partner.name
+                }
+                
+        return {
+            "partner_exists": partner_exists,
+            "partner_data": partner_data,
+            "items": extracted_data.get("items", []),
+            "purchase_number": extracted_data.get("purchase_number", "")
+        }

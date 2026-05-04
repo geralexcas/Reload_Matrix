@@ -76,13 +76,30 @@
     
     <div class="form-group">
       <label for="category">Categoría:</label>
-      <input 
-        type="text" 
-        id="category" 
-        v-model="form.category" 
-        maxlength="100"
-        placeholder="Ej: Electrónica, Ropas, Alimentos"
-      />
+      <div class="category-combo">
+        <input
+          type="text"
+          id="category"
+          v-model="form.category"
+          list="category-list"
+          maxlength="100"
+          placeholder="Selecciona o escribe una categoría..."
+          class="category-input"
+          autocomplete="off"
+        />
+        <datalist id="category-list">
+          <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
+        </datalist>
+        <button
+          type="button"
+          class="btn-add-category"
+          @click="addNewCategory"
+          title="Crear nueva categoría"
+        >
+          + Nueva
+        </button>
+      </div>
+      <small class="form-text">Selecciona una existente o escribe para crear una nueva.</small>
     </div>
     
     <div class="form-group">
@@ -272,6 +289,7 @@ export default {
         { value: 'CREDIT', label: 'Crédito (Pendiente)' }
       ],
       suppliers: [],
+      categories: [],
       editMode: false,
       isLoading: false,
       errors: {}
@@ -303,6 +321,34 @@ export default {
   },
   mounted() {
     this.fetchSuppliers()
+    this.fetchCategories()
+    
+    // Si venimos de la extracción PDF de compras
+    if (this.$route.query.fromPdfItem) {
+      const draft = sessionStorage.getItem('draftProductData')
+      if (draft) {
+        try {
+          const parsed = JSON.parse(draft)
+          this.form.name = parsed.name || ''
+          this.form.purchase_price = parsed.purchase_price || 0
+          this.form.sale_price = (parsed.purchase_price || 0) * 1.3 // Sugerencia de margen 30%
+          this.form.sku = 'PROD-' + Math.floor(Math.random() * 1000000)
+          
+          if (parsed.serial_number) {
+            this.form.barcode = parsed.serial_number.replace(/\s/g, '') // Limpiar espacios
+          }
+          if (parsed.supplier_id) {
+            this.form.supplier_id = parsed.supplier_id
+          }
+          if (parsed.quantity) {
+            this.form.stock_level = parsed.quantity
+          }
+        } catch (e) {
+          console.error('Error restaurando producto borrador', e)
+        }
+        sessionStorage.removeItem('draftProductData')
+      }
+    }
   },
   methods: {
     async fetchSuppliers() {
@@ -317,6 +363,30 @@ export default {
         this.suppliers = [...(response.data || []), ...(responseBoth.data || [])]
       } catch (err) {
         console.error('Error cargando proveedores', err)
+      }
+    },
+    async fetchCategories() {
+      try {
+        // Obtener company_id del store o localStorage
+        const companyId = this.$store?.getters?.['company/selectedCompanyId'] ||
+                          JSON.parse(localStorage.getItem('selectedCompany') || '{}')?.id ||
+                          1
+        const response = await api.get('/api/v1/inventory/categories', {
+          params: { company_id: companyId }
+        })
+        this.categories = response.data || []
+      } catch (err) {
+        console.error('Error cargando categorías', err)
+      }
+    },
+    addNewCategory() {
+      const newCat = prompt('Ingresa el nombre de la nueva categoría:')
+      if (newCat && newCat.trim()) {
+        const trimmed = newCat.trim()
+        if (!this.categories.includes(trimmed)) {
+          this.categories = [...this.categories, trimmed].sort()
+        }
+        this.form.category = trimmed
       }
     },
     cleanBarcode() {
@@ -514,5 +584,44 @@ export default {
 .btn-outline:hover {
   background-color: #007bff;
   color: white;
+}
+
+/* Category combo */
+.category-combo {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.category-input {
+  flex: 1;
+  padding: 0.875rem;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.category-input:focus {
+  outline: none;
+  border-color: #80bdff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+.btn-add-category {
+  white-space: nowrap;
+  padding: 0.6rem 1rem;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-add-category:hover {
+  background-color: #5a6268;
 }
 </style>

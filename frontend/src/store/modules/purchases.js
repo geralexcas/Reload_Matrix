@@ -65,6 +65,24 @@ const actions = {
       commit('setLoading', false)
     }
   },
+  async extractFromPdf({ commit }, { formData, companyId }) {
+    commit('setLoading', true)
+    commit('clearError')
+    try {
+      const res = await api.post('/api/v1/purchases/extract-from-pdf', formData, {
+        params: { company_id: companyId },
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+      return res
+    } catch (err) {
+      commit('setError', err.response?.data?.detail || 'Error al procesar el PDF')
+      throw err
+    } finally {
+      commit('setLoading', false)
+    }
+  },
   async updatePurchase({ commit }, { purchaseId, purchaseData, companyId }) {
     commit('setLoading', true)
     commit('clearError')

@@ -42,7 +42,10 @@ def create_product(
         raise HTTPException(status_code=404, detail="Company not found")
 
     service = inventory_service.InventoryService(db)
-    return service.create_product(product, company_id)
+    try:
+        return service.create_product(product, company_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/bulk", response_model=List[inv_schema.ProductResponse])
@@ -92,6 +95,37 @@ def read_products(
 
     service = inventory_service.InventoryService(db)
     return service.get_products(company_id, skip=skip, limit=limit)
+
+
+@router.get("/categories", response_model=List[str])
+def get_product_categories(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: user_model.User = Depends(get_current_user),
+):
+    """
+    Return all distinct product categories used in this company's inventory.
+    """
+    db_company = (
+        db.query(company_model.Company)
+        .filter(company_model.Company.id == company_id)
+        .first()
+    )
+    if db_company is None:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    from sqlalchemy import distinct
+    rows = (
+        db.query(distinct(prod_model.category))
+        .filter(
+            prod_model.company_id == company_id,
+            prod_model.category.isnot(None),
+            prod_model.category != "",
+        )
+        .order_by(prod_model.category)
+        .all()
+    )
+    return [row[0] for row in rows]
 
 
 @router.get("/{product_id}", response_model=inv_schema.ProductResponse)

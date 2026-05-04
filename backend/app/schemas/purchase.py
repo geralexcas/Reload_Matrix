@@ -34,9 +34,10 @@ class PartnerSimple(BaseModel):
 # Purchase Item Schemas
 class PurchaseItemBase(BaseModel):
     product_id: Optional[int] = None
-    description: str
+    description: Optional[str] = "Sin descripción"
     quantity: Decimal = Field(..., gt=0)
     unit_price: Decimal = Field(..., ge=0)
+    serial_number: Optional[str] = None
     discount_percent: Decimal = Field(default=Decimal("0.00"), ge=0, le=100)
     discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
     tax_rate: Decimal = Field(default=Decimal("0.00"), ge=0, le=100)
@@ -45,9 +46,9 @@ class PurchaseItemBase(BaseModel):
 
     @field_validator("description", mode="before")
     @classmethod
-    def empty_string_to_none(cls, v):
-        if v == "":
-            return None
+    def empty_string_to_default(cls, v):
+        if v is None or v == "":
+            return "Sin descripción"
         return v
 
     model_config = {"from_attributes": True}

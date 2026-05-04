@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, date
@@ -49,6 +49,31 @@ def create_purchase(
         raise HTTPException(
             status_code=500, detail=f"Error creating purchase: {str(e)}"
         )
+
+
+@router.post("/extract-from-pdf")
+async def extract_from_pdf(
+    file: UploadFile = File(...),
+    company_id: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user: user_model.User = Depends(get_current_user),
+):
+    """
+    Upload a purchase invoice PDF and extract supplier and items using Gemini.
+    """
+    _verify_company(db, company_id)
+    if not file.filename.endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un PDF")
+        
+    try:
+        content = await file.read()
+        service = purchase_service.PurchaseService(db)
+        result = service.extract_from_pdf(content, company_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error procesando PDF: {str(e)}")
 
 
 @router.get("/", response_model=List[purchase_schema.PurchaseResponse])

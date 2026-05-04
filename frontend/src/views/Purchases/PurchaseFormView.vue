@@ -7,6 +7,19 @@
 
     <form @submit.prevent="submitPurchase" class="purchase-grid">
       
+      <!-- Tarjeta: Cargar PDF Inteligente -->
+      <div class="card p-4 mb-4 bg-light" v-if="!purchaseId">
+        <h3 class="card-title text-primary"><i class="fas fa-magic"></i> Carga Inteligente de Factura (PDF)</h3>
+        <p class="text-muted small">Sube el PDF de la factura y extraeremos los datos del proveedor y los productos automáticamente usando IA.</p>
+        <div class="d-flex align-items-center mt-2">
+          <input type="file" ref="fileInput" accept=".pdf" class="form-control" style="max-width: 400px; margin-right: 15px;" @change="handleFileSelected" />
+          <button type="button" class="btn btn-primary" @click="uploadPdf" :disabled="!selectedFile || isExtracting">
+            <span v-if="isExtracting"><i class="fas fa-spinner fa-spin mr-2"></i> Procesando...</span>
+            <span v-else><i class="fas fa-upload mr-2"></i> Extraer Datos</span>
+          </button>
+        </div>
+      </div>
+      
       <!-- Tarjeta: Datos del Proveedor -->
       <div class="card p-4 mb-4">
         <h3 class="card-title">Datos del Proveedor</h3>
@@ -73,6 +86,9 @@
           <div class="form-group qty-group mb-0">
             <input type="number" v-model.number="newItem.tax_rate" placeholder="IVA %" min="0" max="100" class="form-control" />
           </div>
+          <div class="form-group qty-group mb-0">
+            <input type="text" v-model="newItem.serial_number" placeholder="No. Serie (Opcional)" class="form-control" />
+          </div>
           <button type="button" class="btn btn-primary" @click="addItem" :disabled="!newItem.product_id">
             Agregar
           </button>
@@ -86,6 +102,7 @@
           <thead>
             <tr>
               <th>Producto</th>
+              <th>No. Serie</th>
               <th class="text-right">Precio Unit.</th>
               <th class="text-center">Cantidad</th>
               <th class="text-right">IVA %</th>
@@ -95,14 +112,35 @@
           </thead>
           <tbody>
             <tr v-if="form.items.length === 0">
-              <td colspan="6" class="text-center text-muted p-4">No hay productos agregados.</td>
+              <td colspan="7" class="text-center text-muted p-4">No hay productos agregados.</td>
             </tr>
             <tr v-for="(item, idx) in form.items" :key="idx">
-              <td>{{ getProductName(item.product_id) }}</td>
-              <td class="text-right">{{ formatNumber(item.unit_price) }}</td>
-              <td class="text-center">{{ item.quantity }}</td>
-              <td class="text-right">{{ item.tax_rate }}%</td>
-              <td class="text-right">{{ formatNumber(item.line_total) }}</td>
+              <td v-if="!item.product_id">
+                <div style="display: flex; gap: 5px; align-items: center;">
+                  <select v-model="item.product_id" class="form-control form-control-sm unmatched-select" style="min-width: 150px;">
+                    <option value="">⚠️ {{ item.description || 'Sin asignar' }}</option>
+                    <option v-for="prod in products" :key="prod.id" :value="prod.id">{{ prod.name }}</option>
+                  </select>
+                  <button type="button" class="btn btn-sm btn-outline-primary" @click="createNewProduct(item)" title="Crear en Inventario" style="padding: 2px 8px;">+</button>
+                </div>
+              </td>
+              <td v-else>{{ getProductName(item.product_id) }}</td>
+              <td>
+                <input type="text" v-model="item.serial_number" class="form-control form-control-sm" placeholder="Opcional" />
+              </td>
+              <td class="text-right">
+                <input v-if="!item.product_id" type="number" v-model.number="item.unit_price" class="form-control form-control-sm text-right" style="width: 100px; display: inline-block;" />
+                <span v-else>{{ formatNumber(item.unit_price) }}</span>
+              </td>
+              <td class="text-center">
+                <input v-if="!item.product_id" type="number" v-model.number="item.quantity" class="form-control form-control-sm text-center" style="width: 80px; display: inline-block;" />
+                <span v-else>{{ item.quantity }}</span>
+              </td>
+              <td class="text-right">
+                <input v-if="!item.product_id" type="number" v-model.number="item.tax_rate" class="form-control form-control-sm text-right" style="width: 80px; display: inline-block;" />
+                <span v-else>{{ item.tax_rate }}%</span>
+              </td>
+              <td class="text-right">{{ formatNumber((item.quantity * item.unit_price) * (1 + item.tax_rate/100)) }}</td>
               <td class="text-center">
                 <button type="button" class="btn-icon text-danger" @click="removeItem(idx)" title="Eliminar">🗑️</button>
               </td>
@@ -164,6 +202,9 @@ export default {
     const companyId = computed(() => store.getters['company/selectedCompanyId'])
 
     const loading = ref(false)
+    const isExtracting = ref(false)
+    const selectedFile = ref(null)
+    const fileInput = ref(null)
     const suppliers = ref([])
     const products = ref([])
 
@@ -183,7 +224,8 @@ export default {
       product_id: '',
       quantity: 1,
       unit_price: 0,
-      tax_rate: 19
+      tax_rate: 19,
+      serial_number: ''
     })
 
     const fetchSuppliers = async () => {
@@ -233,6 +275,7 @@ export default {
             quantity: item.quantity,
             unit_price: item.unit_price,
             tax_rate: item.tax_rate || 0,
+            serial_number: item.serial_number || '',
             line_total: item.line_total
           }))
         }
@@ -265,6 +308,7 @@ export default {
         quantity: newItem.value.quantity,
         unit_price: newItem.value.unit_price,
         tax_rate: newItem.value.tax_rate,
+        serial_number: newItem.value.serial_number || '',
         line_total: subtotal + tax
       })
 
@@ -272,7 +316,8 @@ export default {
         product_id: '',
         quantity: 1,
         unit_price: 0,
-        tax_rate: 19
+        tax_rate: 19,
+        serial_number: ''
       }
     }
 
@@ -316,14 +361,57 @@ export default {
         return
       }
 
+      // Si hay ítems sin asignar, preguntar si continuar sin ellos
+      const unmatched = form.value.items.filter(item => !item.product_id)
+      if (unmatched.length > 0) {
+        const names = unmatched.map(i => `• ${i.description || 'Sin nombre'}`).join('\n')
+        const proceed = confirm(
+          `Los siguientes ${unmatched.length} producto(s) del PDF no están asignados en el inventario:\n\n${names}\n\n¿Desea registrar la compra sin incluir estos productos? (Pulse Cancelar para asignarlos primero)`
+        )
+        if (!proceed) return
+
+        // Filtrar solo los ítems asignados
+        form.value.items = form.value.items.filter(item => item.product_id)
+
+        if (form.value.items.length === 0) {
+          alert('No hay productos asignados para registrar. Por favor asigne al menos un producto.')
+          return
+        }
+      }
+
       loading.value = true
       try {
         const purchaseData = {
-          ...form.value,
-          items: form.value.items.map(item => ({
-            ...item,
-            description: item.description || getProductName(item.product_id)
-          }))
+          purchase_number: form.value.purchase_number,
+          partner_id: form.value.partner_id,
+          purchase_date: form.value.purchase_date || null,
+          due_date: form.value.due_date || null,
+          payment_method: form.value.payment_method,
+          status: form.value.status || 'ISSUED',
+          notes: form.value.notes || null,
+          discount_amount: form.value.discount_amount || 0,
+          currency: 'COP',
+          items: form.value.items.map(item => {
+            const qty = parseFloat(item.quantity) || 0
+            const unitPrice = parseFloat(item.unit_price) || 0
+            const taxRate = parseFloat(item.tax_rate) || 0
+            const subtotalItem = qty * unitPrice
+            const taxAmount = subtotalItem * (taxRate / 100)
+            const lineTotal = subtotalItem + taxAmount
+
+            return {
+              product_id: item.product_id || null,
+              description: item.description || getProductName(item.product_id) || 'Sin descripción',
+              quantity: qty,
+              unit_price: unitPrice,
+              tax_rate: taxRate,
+              tax_amount: taxAmount,
+              discount_percent: 0,
+              discount_amount: 0,
+              line_total: lineTotal,
+              serial_number: item.serial_number || null
+            }
+          })
         }
 
         if (props.purchaseId) {
@@ -342,7 +430,8 @@ export default {
         sessionStorage.removeItem('purchaseDraft')
         emit('saved')
       } catch (err) {
-        alert(err.response?.data?.detail || 'Error al procesar la compra')
+        console.error('Error al registrar compra:', err.response?.data)
+        alert(err.response?.data?.detail || JSON.stringify(err.response?.data) || 'Error al procesar la compra')
       } finally {
         loading.value = false
       }
@@ -356,6 +445,33 @@ export default {
       if (draft && !props.purchaseId) {
         try {
           form.value = JSON.parse(draft)
+
+          // Re-intentar match de ítems no asignados con el inventario actualizado
+          const normalizeString = (str) => {
+            if (!str) return ''
+            return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
+          }
+
+          form.value.items = form.value.items.map(item => {
+            if (item.product_id) return item // ya asignado
+
+            let matchedProductId = ''
+
+            // 1. Match por código de barras / serial
+            if (item.serial_number) {
+              const byBarcode = products.value.find(p => p.barcode === item.serial_number.replace(/\s/g, ''))
+              if (byBarcode) matchedProductId = byBarcode.id
+            }
+
+            // 2. Match por nombre exacto normalizado
+            if (!matchedProductId && item.description) {
+              const query = normalizeString(item.description)
+              const byName = products.value.find(p => normalizeString(p.name) === query)
+              if (byName) matchedProductId = byName.id
+            }
+
+            return { ...item, product_id: matchedProductId }
+          })
         } catch (e) {
           console.error('Error restaurando borrador', e)
         }
@@ -374,8 +490,122 @@ export default {
       }
     })
 
+    const handleFileSelected = (event) => {
+      selectedFile.value = event.target.files[0]
+    }
+
+    const uploadPdf = async () => {
+      if (!selectedFile.value) return
+      
+      isExtracting.value = true
+      const formData = new FormData()
+      formData.append('file', selectedFile.value)
+
+      try {
+        const res = await store.dispatch('purchases/extractFromPdf', {
+          formData,
+          companyId: companyId.value
+        })
+        
+        const data = res.data
+        if (data.partner_exists) {
+          form.value.partner_id = data.partner_data.id
+          alert(`Proveedor ${data.partner_data.name} encontrado. Revisa los productos extraídos.`)
+        } else {
+          // Guardar datos en sessionStorage para el formulario de partner
+          sessionStorage.setItem('draftPdfPartnerData', JSON.stringify(data.partner_data))
+          alert('Proveedor no encontrado. Serás redirigido para crearlo.')
+        }
+
+        if (data.purchase_number) {
+          form.value.purchase_number = data.purchase_number
+        }
+
+        const normalizeString = (str) => {
+          if (!str) return ''
+          return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
+        }
+
+        // Mapear items
+        if (data.items && data.items.length > 0) {
+          data.items.forEach(item => {
+            let matchedProductId = ''
+            
+            // 1. Intentar hacer match exacto por número de serie (código de barras)
+            if (item.serial_number) {
+              const exactBarcodeMatch = products.value.find(p => p.barcode === item.serial_number.replace(/\s/g, ''))
+              if (exactBarcodeMatch) {
+                matchedProductId = exactBarcodeMatch.id
+              }
+            }
+
+            // 2. Si no hay match por serie, intentar por nombre exacto
+            if (!matchedProductId && item.description) {
+              const query = normalizeString(item.description)
+              const match = products.value.find(p => {
+                const pName = normalizeString(p.name)
+                // Usar coincidencia exacta para evitar falsos positivos
+                return pName === query
+              })
+              if (match) {
+                matchedProductId = match.id
+              }
+            }
+
+            form.value.items.push({
+              product_id: matchedProductId,
+              description: item.description,
+              quantity: item.quantity || 1,
+              unit_price: item.unit_price || 0,
+              tax_rate: item.tax_rate || 0,
+              serial_number: item.serial_number || '',
+              line_total: (item.quantity || 1) * (item.unit_price || 0) * (1 + (item.tax_rate || 0) / 100)
+            })
+          })
+        }
+        
+        if (!data.partner_exists) {
+          // Redirigir a crear proveedor con redirección de vuelta a compras
+          // Guardamos el borrador de la compra para no perder los items
+          sessionStorage.setItem('purchaseDraft', JSON.stringify(form.value))
+          router.push('/partners/new?redirect=/purchases&fromPdf=true')
+        }
+      } catch (err) {
+        alert(err.response?.data?.detail || 'Error al procesar el PDF.')
+      } finally {
+        isExtracting.value = false
+        if (fileInput.value) fileInput.value.value = ''
+        selectedFile.value = null
+      }
+    }
+
+    const createNewProduct = (item) => {
+      // Guardar el borrador completo de la compra actual
+      sessionStorage.setItem('purchaseDraft', JSON.stringify(form.value))
+      
+      // Guardar los datos del producto a crear
+      const productDraft = {
+        name: item.description || '',
+        purchase_price: item.unit_price || 0,
+        tax_rate: item.tax_rate || 19,
+        serial_number: item.serial_number || '',
+        supplier_id: form.value.partner_id || null,
+        quantity: item.quantity || 1
+      }
+      sessionStorage.setItem('draftProductData', JSON.stringify(productDraft))
+      
+      // Redirigir a la creación de producto
+      router.push('/inventory/new?redirect=/purchases&fromPdfItem=true')
+    }
+
     return {
       loading,
+      isExtracting,
+      selectedFile,
+      fileInput,
+      handleFileSelected,
+      uploadPdf,
+      createNewProduct,
       suppliers,
       products,
       form,
@@ -544,4 +774,15 @@ export default {
 .p-4 { padding: 1.5rem; }
 .d-flex { display: flex; }
 .justify-content-end { justify-content: flex-end; }
+
+/* Selects de ítems no asignados desde PDF */
+.unmatched-select {
+  border-color: #e67e22 !important;
+  background-color: #fff8f0 !important;
+  color: #c0392b;
+  font-weight: 500;
+}
+.unmatched-select:focus {
+  box-shadow: 0 0 0 2px rgba(230, 126, 34, 0.4) !important;
+}
 </style>
