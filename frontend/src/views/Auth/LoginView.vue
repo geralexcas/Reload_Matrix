@@ -11,6 +11,7 @@
             v-model="username" 
             required
             placeholder="Ingrese su usuario o email"
+            autocomplete="username"
           />
         </div>
         <div class="form-group">
@@ -21,6 +22,7 @@
             v-model="password" 
             required
             placeholder="Ingrese su contraseña"
+            autocomplete="current-password"
           />
         </div>
         <div class="form-group">

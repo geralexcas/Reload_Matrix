@@ -133,6 +133,11 @@ class InventoryService:
                             )
 
             except ValueError as ve:
+                if str(ve) == "Insufficient balance":
+                    raise ValueError(
+                        f"No hay saldo suficiente en tesorería para pagar el stock inicial en {payment_method_str}. "
+                        "Por favor, asigne un proveedor y seleccione la forma de pago 'Crédito' o registre fondos primero."
+                    )
                 raise ve
             except Exception as e:
                 import logging

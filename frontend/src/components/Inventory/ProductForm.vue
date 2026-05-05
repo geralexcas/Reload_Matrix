@@ -433,6 +433,13 @@ export default {
         this.errors.stock_level = 'El stock no puede ser negativo'
         isValid = false
       }
+
+      if (this.form.stock_level > 0 && this.form.purchase_price > 0) {
+        if (this.form.payment_method === 'CREDIT' && !this.form.supplier_id) {
+          alert('Se requiere un proveedor asignado para registrar stock inicial a crédito.')
+          isValid = false
+        }
+      }
       
       return isValid
     },
