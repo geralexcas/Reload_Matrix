@@ -68,30 +68,47 @@
       <!-- Tarjeta: Agregar Productos -->
       <div class="card p-4 mb-4 bg-light">
         <h3 class="card-title">Agregar Productos</h3>
-        <div class="add-item-bar">
-          <div class="form-group flex-2 mb-0">
-            <select v-model="newItem.product_id" @change="onNewItemProductChange" class="form-control">
-              <option value="">Buscar y seleccionar producto...</option>
-              <option v-for="prod in products" :key="prod.id" :value="prod.id">
-                {{ prod.name }} - Stock: {{ prod.stock_level }}
-              </option>
-            </select>
+        <div style="display: grid; grid-template-columns: minmax(200px, 2.5fr) minmax(80px, 1fr) minmax(100px, 1.2fr) 130px minmax(150px, 1.5fr) auto; gap: 15px; align-items: center; width: 100%; margin-bottom: 15px; padding-top: 5px;">
+          
+          <div class="form-group mb-0" style="width: 100%;">
+            <div style="display: flex; gap: 8px;">
+              <select v-model="newItem.product_id" @change="onNewItemProductChange" class="form-control" style="flex: 1; min-width: 0;">
+                <option value="">Buscar y seleccionar producto...</option>
+                <option v-for="prod in products" :key="prod.id" :value="prod.id">
+                  {{ prod.name }} - Stock: {{ prod.stock_level }}
+                </option>
+              </select>
+              <button type="button" class="btn btn-outline-primary" @click="openProductForm" title="Crear Producto Nuevo" style="white-space: nowrap;">
+                + Nuevo
+              </button>
+            </div>
           </div>
-          <div class="form-group qty-group mb-0">
+          
+          <div class="form-group mb-0" style="width: 100%;">
             <input type="number" v-model.number="newItem.quantity" placeholder="Cant." min="0.01" step="0.01" class="form-control" />
           </div>
-          <div class="form-group qty-group mb-0">
+          
+          <div class="form-group mb-0" style="width: 100%;">
             <input type="number" v-model.number="newItem.unit_price" placeholder="Precio" min="0" step="0.01" class="form-control" />
           </div>
-          <div class="form-group qty-group mb-0">
-            <input type="number" v-model.number="newItem.tax_rate" placeholder="IVA %" min="0" max="100" class="form-control" />
+          
+          <div class="form-group mb-0" style="width: 100%;">
+            <label class="mb-0" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; color: #555; font-weight: 500; height: 38px; width: 100%;">
+              <input type="checkbox" v-model="applyIva" @change="newItem.tax_rate = applyIva ? 19 : 0" style="width: 16px; height: 16px; margin: 0; cursor: pointer;">
+              <span style="white-space: nowrap;">IVA (19%)</span>
+            </label>
           </div>
-          <div class="form-group qty-group mb-0">
+          
+          <div class="form-group mb-0" style="width: 100%;">
             <input type="text" v-model="newItem.serial_number" placeholder="No. Serie (Opcional)" class="form-control" />
           </div>
-          <button type="button" class="btn btn-primary" @click="addItem" :disabled="!newItem.product_id">
-            Agregar
-          </button>
+          
+          <div class="form-group mb-0" style="width: 100%; display: flex; align-items: center;">
+            <button type="button" class="btn btn-primary" @click="addItem" style="white-space: nowrap; height: 38px; margin-top: 0;">
+              Añadir
+            </button>
+          </div>
+          
         </div>
       </div>
 
@@ -207,6 +224,7 @@ export default {
     const fileInput = ref(null)
     const suppliers = ref([])
     const products = ref([])
+    const applyIva = ref(true)
 
     const form = ref({
       purchase_number: '',
@@ -289,15 +307,22 @@ export default {
     }
 
     const onNewItemProductChange = () => {
-      const product = products.value.find(p => p.id === newItem.value.product_id)
+      const product = products.value.find(p => p.id == newItem.value.product_id)
       if (product) {
         newItem.value.unit_price = product.purchase_price || 0
       }
     }
 
     const addItem = () => {
-      if (!newItem.value.product_id) return
-      const product = products.value.find(p => p.id === newItem.value.product_id)
+      if (!newItem.value.product_id) {
+        alert('Por favor, primero seleccione un producto de la lista desplegable.')
+        return
+      }
+      const product = products.value.find(p => p.id == newItem.value.product_id)
+      if (!product) {
+        alert('El producto seleccionado no es válido o no se pudo encontrar.')
+        return 
+      }
       
       const subtotal = newItem.value.quantity * newItem.value.unit_price
       const tax = subtotal * (newItem.value.tax_rate / 100)
@@ -316,7 +341,7 @@ export default {
         product_id: '',
         quantity: 1,
         unit_price: 0,
-        tax_rate: 19,
+        tax_rate: applyIva.value ? 19 : 0,
         serial_number: ''
       }
     }
@@ -353,6 +378,11 @@ export default {
       // Guardar borrador para no perder datos al ir a crear el proveedor
       sessionStorage.setItem('purchaseDraft', JSON.stringify(form.value))
       router.push('/partners/new?redirect=/purchases')
+    }
+
+    const openProductForm = () => {
+      sessionStorage.setItem('purchaseDraft', JSON.stringify(form.value))
+      router.push('/inventory/new?redirect=/purchases')
     }
 
     const submitPurchase = async () => {
@@ -608,6 +638,7 @@ export default {
       createNewProduct,
       suppliers,
       products,
+      applyIva,
       form,
       newItem,
       subtotal,
@@ -619,7 +650,8 @@ export default {
       onNewItemProductChange,
       formatNumber,
       submitPurchase,
-      openPartnerForm
+      openPartnerForm,
+      openProductForm
     }
   }
 }
@@ -691,13 +723,29 @@ export default {
 }
 
 .add-item-bar {
-  display: flex;
-  gap: 10px;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: 2.5fr 1fr 1.2fr 125px 1.5fr auto;
+  gap: 12px;
+  align-items: center;
 }
 
-.flex-2 { flex: 2; }
-.qty-group { flex: 1; }
+@media (max-width: 1200px) {
+  .add-item-bar {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+  .add-item-bar .flex-2 {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .add-item-bar {
+    grid-template-columns: 1fr;
+  }
+}
+
+.flex-2 { width: 100%; }
+.qty-group { width: 100%; }
 
 .detail-table {
   width: 100%;
