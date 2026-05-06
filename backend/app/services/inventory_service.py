@@ -28,9 +28,15 @@ class InventoryService:
             if existing_product:
                 raise ValueError("Product with this barcode already exists")
 
+        from sqlalchemy.exc import IntegrityError
+        
         db_product = Product(**product.model_dump(), company_id=company_id)
         self.db.add(db_product)
-        self.db.commit()
+        try:
+            self.db.commit()
+        except IntegrityError:
+            self.db.rollback()
+            raise ValueError("El SKU o código de barras ya existe.")
         self.db.refresh(db_product)
 
         # Create accounting entry or purchase if initial stock is provided
@@ -79,7 +85,7 @@ class InventoryService:
 
                     # Trigger purchase accounting (which handles accounts payable and inventory)
                     accounting_service = AccountingService(self.db)
-                    accounting_service.create_journal_entry_for_purchase(
+                    accounting_service.create_journal_entry_from_purchase(
                         purchase_id=db_purchase.id,
                         company_id=company_id,
                         total_amount=total_amount,
