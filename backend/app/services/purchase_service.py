@@ -163,28 +163,37 @@ class PurchaseService:
             self._update_inventory(db_purchase, company_id)
             self._create_accounting_entry(db_purchase, company_id)
 
-            # Create automatic payment if payment method is not credit
+            # Create automatic payment if payment method is not credit AND no payment exists yet
             if db_purchase.status in [
                 "ISSUED",
                 "PAID",
             ] and db_purchase.payment_method not in ["CREDIT", "PARTIAL_CREDIT"]:
-                db_payment = PurchasePayment(
-                    purchase_id=db_purchase.id,
-                    payment_method=db_purchase.payment_method,
-                    amount=db_purchase.total_amount,
-                    payment_date=db_purchase.purchase_date,
-                    reference=f"Auto-{db_purchase.purchase_number}",
-                    created_by=user_id,
+                # Check if payment already exists to prevent duplicates
+                existing_payment = (
+                    self.db.query(PurchasePayment)
+                    .filter(PurchasePayment.purchase_id == db_purchase.id)
+                    .first()
                 )
-                self.db.add(db_payment)
-                
-                # Auto update status to PAID since payment covers total amount
-                db_purchase.status = "PAID"
-                
-                self.db.commit()
-                self.db.refresh(db_payment)
-                # Create treasury transaction to decrease bank/cash balance
-                self._create_treasury_transaction(db_purchase, db_payment, company_id)
+                if not existing_payment:
+                    db_payment = PurchasePayment(
+                        purchase_id=db_purchase.id,
+                        payment_method=db_purchase.payment_method,
+                        amount=db_purchase.total_amount,
+                        payment_date=db_purchase.purchase_date,
+                        reference=f"Auto-{db_purchase.purchase_number}",
+                        created_by=user_id,
+                    )
+                    self.db.add(db_payment)
+
+                    # Auto update status to PAID since payment covers total amount
+                    db_purchase.status = "PAID"
+
+                    self.db.commit()
+                    self.db.refresh(db_payment)
+                    # Create treasury transaction to decrease bank/cash balance
+                    self._create_treasury_transaction(db_purchase, db_payment, company_id)
+                else:
+                    self.db.commit()
 
         return db_purchase
 
@@ -381,6 +390,10 @@ class PurchaseService:
         if db_purchase.status not in ["DRAFT", "ISSUED"]:
             raise ValueError("Cannot update purchase in current status")
 
+        # Store original status to detect changes
+        original_status = db_purchase.status
+        original_payment_method = db_purchase.payment_method
+
         update_data = purchase_data.model_dump(exclude_unset=True)
 
         # Handle enum conversion
@@ -395,16 +408,38 @@ class PurchaseService:
         self.db.commit()
         self.db.refresh(db_purchase)
 
-        # If status changed to ISSUED, update inventory and accounting
-        if db_purchase.status == "ISSUED":
+        # Only update inventory/accounting when status CHANGES to ISSUED (not on every save)
+        status_changed_to_issued = original_status != "ISSUED" and db_purchase.status == "ISSUED"
+
+        if status_changed_to_issued:
             self._update_inventory(db_purchase, company_id)
             self._create_accounting_entry(db_purchase, company_id)
 
-        return db_purchase
+            # Create automatic payment if not credit AND no payment exists yet
+            if db_purchase.payment_method not in ["CREDIT", "PARTIAL_CREDIT"]:
+                existing_payment = (
+                    self.db.query(PurchasePayment)
+                    .filter(PurchasePayment.purchase_id == db_purchase.id)
+                    .first()
+                )
+                if not existing_payment:
+                    user_id = None  # Will be None for updates, no user tracking
+                    db_payment = PurchasePayment(
+                        purchase_id=db_purchase.id,
+                        payment_method=db_purchase.payment_method,
+                        amount=db_purchase.total_amount,
+                        payment_date=db_purchase.purchase_date,
+                        reference=f"Auto-{db_purchase.purchase_number}",
+                        created_by=user_id,
+                    )
+                    self.db.add(db_payment)
+                    db_purchase.status = "PAID"
+                    self.db.commit()
+                    self._create_treasury_transaction(db_purchase, db_payment, company_id)
+                else:
+                    self.db.commit()
 
-    def delete_purchase(self, purchase_id: int, company_id: int) -> bool:
-        """Delete a purchase (only DRAFT status)"""
-        db_purchase = self.get_purchase_by_id(purchase_id, company_id)
+        return db_purchase
         if not db_purchase:
             return False
 
