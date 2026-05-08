@@ -620,7 +620,8 @@ export default {
         tax_rate: item.tax_rate || 19,
         serial_number: item.serial_number || '',
         supplier_id: form.value.partner_id || null,
-        quantity: item.quantity || 1
+        quantity: item.quantity || 1,
+        payment_method: form.value.payment_method || 'CREDIT'
       }
       sessionStorage.setItem('draftProductData', JSON.stringify(productDraft))
       

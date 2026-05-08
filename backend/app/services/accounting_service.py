@@ -1775,7 +1775,14 @@ class AccountingService:
             {
                 "code": "2110",
                 "name": "Cuentas por pagar",
-                "description": "Obligaciones con proveedores",
+                "description": "Obligaciones generales",
+                "account_type": "LIABILITY",
+                "parent_id": None,
+            },
+            {
+                "code": "2205",
+                "name": "Proveedores",
+                "description": "Cuentas por pagar a proveedores",
                 "account_type": "LIABILITY",
                 "parent_id": None,
             },

@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional, Dict
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 from app.models.sql.purchases import Purchase, PurchaseItem, PurchasePayment
 from app.models.sql import company as company_model
@@ -257,6 +257,103 @@ class PurchaseService:
             .limit(limit)
             .all()
         )
+
+    def get_accounts_payable(
+        self,
+        company_id: int,
+        days_ahead: int = 7,
+    ) -> Dict:
+        """
+        Get accounts payable summary including overdue and upcoming due invoices.
+        
+        Args:
+            company_id: Company ID
+            days_ahead: Number of days to consider as 'upcoming' (default 7)
+            
+        Returns:
+            Dictionary with:
+            - overdue_invoices: List of invoices past due date
+            - upcoming_invoices: List of invoices due within days_ahead
+            - pending_invoices: All unpaid invoices
+            - summary: Total amounts
+        """
+        now = datetime.now()
+        upcoming_cutoff = now + timedelta(days=days_ahead)
+        
+        # Get all non-paid purchases for the company
+        pending_purchases = (
+            self.db.query(Purchase)
+            .options(joinedload(Purchase.partner), joinedload(Purchase.payments))
+            .filter(
+                Purchase.company_id == company_id,
+                Purchase.status.in_(["ISSUED", "PARTIAL", "OVERDUE"]),
+            )
+            .order_by(Purchase.due_date.asc().nullslast())
+            .all()
+        )
+        
+        overdue_invoices = []
+        upcoming_invoices = []
+        pending_invoices = []
+        
+        total_pending = Decimal("0.00")
+        total_overdue = Decimal("0.00")
+        total_upcoming = Decimal("0.00")
+        
+        for purchase in pending_purchases:
+            balance_due = self.calculate_balance_due(purchase.id)
+            if balance_due <= 0:
+                continue
+                
+            # Calculate days until due
+            days_until_due = None
+            if purchase.due_date:
+                days_until_due = (purchase.due_date - now).days
+            
+            # Determine status
+            is_overdue = purchase.due_date and purchase.due_date < now
+            is_upcoming = purchase.due_date and now <= purchase.due_date <= upcoming_cutoff
+            
+            invoice_data = {
+                "id": purchase.id,
+                "purchase_number": purchase.purchase_number,
+                "partner_id": purchase.partner_id,
+                "partner_name": purchase.partner.name if purchase.partner else "Sin proveedor",
+                "purchase_date": purchase.purchase_date,
+                "due_date": purchase.due_date,
+                "total_amount": purchase.total_amount,
+                "balance_due": balance_due,
+                "payment_method": purchase.payment_method,
+                "status": purchase.status,
+                "days_until_due": days_until_due,
+                "is_overdue": is_overdue,
+                "is_upcoming": is_upcoming,
+            }
+            
+            if is_overdue:
+                overdue_invoices.append(invoice_data)
+                total_overdue += balance_due
+            elif is_upcoming:
+                upcoming_invoices.append(invoice_data)
+                total_upcoming += balance_due
+            else:
+                pending_invoices.append(invoice_data)
+            
+            total_pending += balance_due
+        
+        return {
+            "overdue_invoices": overdue_invoices,
+            "upcoming_invoices": upcoming_invoices,
+            "pending_invoices": pending_invoices,
+            "summary": {
+                "total_pending": total_pending,
+                "total_overdue": total_overdue,
+                "total_upcoming": total_upcoming,
+                "overdue_count": len(overdue_invoices),
+                "upcoming_count": len(upcoming_invoices),
+                "pending_count": len(pending_invoices),
+            },
+        }
 
     def get_purchase_by_id(
         self, purchase_id: int, company_id: int

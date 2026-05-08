@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
+import logging
+import traceback
 
 from app.models.sql import company as company_model
 from app.models.sql import user as user_model
@@ -9,6 +11,8 @@ from app.schemas import inventory as inv_schema
 from app.services import inventory_service
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -32,6 +36,9 @@ def create_product(
     """
     Create a new product.
     """
+    logger.info(f"[INVENTORY] create_product called - company_id: {company_id}")
+    logger.info(f"[INVENTORY] product data: {product.model_dump()}")
+    
     # Verify company exists
     db_company = (
         db.query(company_model.Company)
@@ -43,9 +50,16 @@ def create_product(
 
     service = inventory_service.InventoryService(db)
     try:
-        return service.create_product(product, company_id)
+        result = service.create_product(product, company_id)
+        logger.info(f"[INVENTORY] Product created successfully: {result.id}")
+        return result
     except ValueError as e:
+        logger.error(f"[INVENTORY] ValueError creating product: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[INVENTORY] Unexpected error creating product: {str(e)}")
+        logger.error(f"[INVENTORY] Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=400, detail=f"Error al crear producto: {str(e)}")
 
 
 @router.post("/bulk", response_model=List[inv_schema.ProductResponse])

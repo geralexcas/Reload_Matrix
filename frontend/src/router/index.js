@@ -181,6 +181,11 @@ const routes = [
         component: () => import('@/views/Purchases/IndexView.vue')
       },
       {
+        path: '/purchases/accounts-payable',
+        name: 'purchases-accounts-payable',
+        component: () => import('@/views/Purchases/AccountsPayableView.vue')
+      },
+      {
         path: '/treasury',
         name: 'treasury',
         component: () => import('@/views/Treasury/IndexView.vue')

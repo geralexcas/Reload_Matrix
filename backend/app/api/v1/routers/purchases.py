@@ -230,3 +230,25 @@ def get_purchase_balance(
         "total_amount": purchase.total_amount,
         "balance_due": balance,
     }
+
+
+@router.get("/accounts-payable")
+def get_accounts_payable(
+    company_id: int = Query(...),
+    days_ahead: int = Query(7, ge=1, le=90),
+    db: Session = Depends(get_db),
+    current_user: user_model.User = Depends(get_current_user),
+):
+    """
+    Get accounts payable summary including overdue and upcoming due invoices.
+    
+    - days_ahead: Number of days to consider as 'upcoming' (default 7)
+    Returns:
+    - overdue_invoices: Invoices past due date
+    - upcoming_invoices: Invoices due within days_ahead
+    - pending_invoices: All other unpaid invoices
+    - summary: Total amounts and counts
+    """
+    _verify_company(db, company_id)
+    service = purchase_service.PurchaseService(db)
+    return service.get_accounts_payable(company_id, days_ahead)

@@ -93,6 +93,10 @@
         <span class="nav-icon">🛒</span>
         <span v-if="!isCollapsed">Compras</span>
       </router-link>
+      <router-link to="/purchases/accounts-payable" class="nav-item" active-class="active">
+        <span class="nav-icon">📋</span>
+        <span v-if="!isCollapsed">Cuentas por Pagar</span>
+      </router-link>
 
       <div v-if="isSuperuser" class="nav-group">
         <div class="nav-item has-submenu" @click="toggleMenu('treasury')" :class="{ 'submenu-open': expandedMenus.treasury }">

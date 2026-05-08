@@ -343,6 +343,9 @@ export default {
           if (parsed.quantity) {
             this.form.stock_level = parsed.quantity
           }
+          if (parsed.payment_method) {
+            this.form.payment_method = parsed.payment_method
+          }
         } catch (e) {
           console.error('Error restaurando producto borrador', e)
         }
