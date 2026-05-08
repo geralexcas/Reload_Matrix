@@ -42,7 +42,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/chart-of-accounts/`,
+        `/api/v1/accounting/chart-of-accounts/`,
         {
           params: { company_id: companyId, skip, limit }
         }
@@ -61,7 +61,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/chart-of-accounts/${accountId}`,
+        `/api/v1/accounting/chart-of-accounts/${accountId}`,
         { params: { company_id: companyId } }
       )
       commit('setChartOfAccount', res.data)
@@ -78,7 +78,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.post(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/chart-of-accounts/`,
+        `/api/v1/accounting/chart-of-accounts/`,
         { ...accountData, company_id: companyId }
       )
       commit('setChartOfAccount', res.data)
@@ -95,7 +95,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.put(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/chart-of-accounts/${accountId}`,
+        `/api/v1/accounting/chart-of-accounts/${accountId}`,
         { ...accountData, company_id: companyId }
       )
       commit('setChartOfAccount', res.data)
@@ -112,7 +112,7 @@ const actions = {
     commit('clearError')
     try {
       await api.delete(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/chart-of-accounts/${accountId}`,
+        `/api/v1/accounting/chart-of-accounts/${accountId}`,
         { params: { company_id: companyId } }
       )
       commit('setChartOfAccount', null)
@@ -129,7 +129,7 @@ const actions = {
     commit('clearError')
     try {
       await api.delete(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/journal-entries/${entryId}`,
+        `/api/v1/accounting/journal-entries/${entryId}`,
         { params: { company_id: companyId } }
       )
       commit('setJournalEntry', null)
@@ -146,7 +146,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/journal-entries/`,
+        `/api/v1/accounting/journal-entries/`,
         {
           params: { company_id: companyId, skip, limit }
         }
@@ -165,7 +165,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/journal-entries/${entryId}`,
+        `/api/v1/accounting/journal-entries/${entryId}`,
         { params: { company_id: companyId } }
       )
       commit('setJournalEntry', res.data)
@@ -182,7 +182,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.post(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/journal-entries/`,
+        `/api/v1/accounting/journal-entries/`,
         { ...entryData, company_id: companyId }
       )
       commit('setJournalEntry', res.data)
@@ -199,7 +199,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.post(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/journal-entries/with-lines/`,
+        `/api/v1/accounting/journal-entries/with-lines/`,
         { ...entryData, company_id: companyId }
       )
       commit('setJournalEntry', res.data)
@@ -216,7 +216,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.post(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/journal-entries/${entryId}/post/`,
+        `/api/v1/accounting/journal-entries/${entryId}/post/`,
         {},
         { params: { company_id: companyId } }
       )
@@ -234,7 +234,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/libro-mayor/`,
+        `/api/v1/accounting/libro-mayor/`,
         { params: { company_id: companyId, date_from: dateFrom, date_to: dateTo, account_code: accountCode } }
       )
       commit('setLibroMayor', res.data)
@@ -251,7 +251,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/libro-ventas/`,
+        `/api/v1/accounting/libro-ventas/`,
         { params: { company_id: companyId, date_from: dateFrom, date_to: dateTo } }
       )
       commit('setLibroVentas', res.data)
@@ -268,7 +268,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/libro-compras/`,
+        `/api/v1/accounting/libro-compras/`,
         { params: { company_id: companyId, date_from: dateFrom, date_to: dateTo } }
       )
       commit('setLibroCompras', res.data)
@@ -285,7 +285,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/declaracion-iva/`,
+        `/api/v1/accounting/declaracion-iva/`,
         { params: { company_id: companyId, date_from: dateFrom, date_to: dateTo } }
       )
       commit('setDeclaracionIVA', res.data)
@@ -302,7 +302,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/reporte-retenciones/`,
+        `/api/v1/accounting/reporte-retenciones/`,
         { params: { company_id: companyId, date_from: dateFrom, date_to: dateTo } }
       )
       commit('setRetenciones', res.data)
@@ -319,7 +319,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/reporte-ingresos/`,
+        `/api/v1/accounting/reporte-ingresos/`,
         { params: { company_id: companyId, date_from: dateFrom, date_to: dateTo } }
       )
       commit('setIngresos', res.data)
@@ -336,7 +336,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/reporte-patrimonio/`,
+        `/api/v1/accounting/reporte-patrimonio/`,
         { params: { company_id: companyId, date_from: dateFrom, date_to: dateTo } }
       )
       commit('setPatrimonio', res.data)
@@ -353,7 +353,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/estado-resultados/`,
+        `/api/v1/accounting/estado-resultados/`,
         { params: { company_id: companyId, date_from: dateFrom, date_to: dateTo } }
       )
       commit('setEstadoResultados', res.data)
@@ -370,7 +370,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/accounting/balance-general/`,
+        `/api/v1/accounting/balance-general/`,
         { params: { company_id: companyId, cut_date: cutDate } }
       )
       commit('setBalanceGeneral', res.data)

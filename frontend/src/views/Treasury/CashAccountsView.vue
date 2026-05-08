@@ -112,8 +112,11 @@ export default {
     }
   },
   mounted() {
+    const companyId = parseInt(sessionStorage.getItem('selectedCompanyId'))
     this.$store.dispatch('treasury/fetchCashAccounts')
-    this.$store.dispatch('accounting/fetchChartOfAccounts')
+    if (companyId) {
+      this.$store.dispatch('accounting/fetchChartOfAccounts', { companyId })
+    }
   },
   methods: {
     formatCurrency(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(v || 0) },

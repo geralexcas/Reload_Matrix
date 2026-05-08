@@ -1972,6 +1972,104 @@ class AccountingService:
 
         return created_accounts
 
+    def create_opening_entry(
+        self,
+        company_id: int,
+        initial_capital: Decimal = Decimal("0.00"),
+        initial_cash: Decimal = Decimal("0.00"),
+        initial_bank: Decimal = Decimal("0.00"),
+    ) -> Optional[JournalEntry]:
+        """
+        Create opening journal entry for a new company.
+        According to Colombian law (Decreto 2420/2015), the opening entry records:
+        - Assets: Cash, Bank accounts, Receivables, Inventory
+        - Liabilities: Accounts payable, Loans
+        - Equity: Capital stock, Retained earnings
+
+        Args:
+            company_id: Company ID
+            initial_capital: Initial capital contribution
+            initial_cash: Initial cash balance
+            initial_bank: Initial bank balance
+        """
+        from datetime import datetime, timezone
+
+        effective_account = self._get_account_by_code(company_id, "1110")
+        cash_account = self._get_account_by_code(company_id, "111001")
+        bank_account = self._get_account_by_code(company_id, "111010")
+        capital_account = self._get_account_by_code(company_id, "3100")
+
+        if not capital_account:
+            raise ValueError("Capital social account (3100) not found in chart of accounts")
+
+        current_year = datetime.now(timezone.utc).year
+        reference = f"APERTURA-{current_year}"
+        description = f"Asiento de apertura - Constitución de la empresa - Año {current_year}"
+
+        db_je = JournalEntry(
+            entry_date=datetime.now(timezone.utc),
+            description=description,
+            reference=reference,
+            company_id=company_id,
+            is_posted=True,
+        )
+        self.db.add(db_je)
+        self.db.flush()
+
+        total_debits = Decimal("0.00")
+        total_credits = Decimal("0.00")
+
+        if initial_cash > 0 and cash_account:
+            self.db.add(
+                JournalEntryLine(
+                    journal_entry_id=db_je.id,
+                    account_id=cash_account.id,
+                    debit_amount=initial_cash,
+                    credit_amount=Decimal("0.00"),
+                    description=f"Saldo inicial caja",
+                )
+            )
+            total_debits += initial_cash
+
+        if initial_bank > 0 and bank_account:
+            self.db.add(
+                JournalEntryLine(
+                    journal_entry_id=db_je.id,
+                    account_id=bank_account.id,
+                    debit_amount=initial_bank,
+                    credit_amount=Decimal("0.00"),
+                    description=f"Saldo inicial bancos",
+                )
+            )
+            total_debits += initial_bank
+
+        if initial_capital > 0:
+            self.db.add(
+                JournalEntryLine(
+                    journal_entry_id=db_je.id,
+                    account_id=capital_account.id,
+                    debit_amount=Decimal("0.00"),
+                    credit_amount=initial_capital,
+                    description=f"Aporte de capital social",
+                )
+            )
+            total_credits += initial_capital
+
+        if total_debits == 0 and total_credits == 0:
+            self.db.add(
+                JournalEntryLine(
+                    journal_entry_id=db_je.id,
+                    account_id=capital_account.id,
+                    debit_amount=Decimal("0.00"),
+                    credit_amount=Decimal("0.00"),
+                    description=f"Apertura de libros contables",
+                )
+            )
+
+        self.db.commit()
+        self.db.refresh(db_je)
+        return db_je
+
     # Automatic journal entry creation methods
     def _get_account_by_code(
         self, company_id: int, code: str

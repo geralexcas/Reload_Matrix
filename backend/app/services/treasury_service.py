@@ -89,6 +89,15 @@ class TreasuryService:
         self.db.flush()
 
         if data.initial_balance > 0 and data.linked_account_id:
+            linked_account = (
+                self.db.query(ChartOfAccounts)
+                .filter(ChartOfAccounts.id == data.linked_account_id)
+                .first()
+            )
+            contra_account = self._get_account_by_code(company_id, "3100")
+            
+            account_name = linked_account.name if linked_account else f"Cuenta #{data.linked_account_id}"
+            
             self._create_journal_entry(
                 company_id=company_id,
                 description=f"Saldo inicial - {data.bank_name} {data.account_number}",
@@ -98,13 +107,13 @@ class TreasuryService:
                         data.linked_account_id,
                         data.initial_balance,
                         Decimal("0.00"),
-                        f"Saldo inicial cuenta bancaria",
+                        f"Saldo inicial {account_name}",
                     ),
                     (
-                        data.linked_account_id,
+                        contra_account.id if contra_account else data.linked_account_id,
                         Decimal("0.00"),
                         data.initial_balance,
-                        f"Contra partida saldo inicial",
+                        f"Contra partida - Capital social",
                     ),
                 ],
             )
@@ -196,6 +205,38 @@ class TreasuryService:
             current_balance=data.initial_balance,
         )
         self.db.add(db_ca)
+        self.db.flush()
+
+        if data.initial_balance > 0 and data.linked_account_id:
+            linked_account = (
+                self.db.query(ChartOfAccounts)
+                .filter(ChartOfAccounts.id == data.linked_account_id)
+                .first()
+            )
+            contra_account = self._get_account_by_code(company_id, "3100")
+            
+            account_name = linked_account.name if linked_account else f"Cuenta #{data.linked_account_id}"
+            
+            self._create_journal_entry(
+                company_id=company_id,
+                description=f"Saldo inicial - {data.name}",
+                reference=f"CA-OPEN-{db_ca.id:06d}",
+                lines=[
+                    (
+                        data.linked_account_id,
+                        data.initial_balance,
+                        Decimal("0.00"),
+                        f"Saldo inicial {account_name}",
+                    ),
+                    (
+                        contra_account.id if contra_account else data.linked_account_id,
+                        Decimal("0.00"),
+                        data.initial_balance,
+                        f"Contra partida - Capital social",
+                    ),
+                ],
+            )
+
         self.db.commit()
         self.db.refresh(db_ca)
         return db_ca
@@ -321,8 +362,15 @@ class TreasuryService:
             balance_after = account.current_balance
 
             if account.linked_account_id and not skip_journal_entry:
-                # Si no se salta el asiento, debemos encontrar la cuenta de contrapartida adecuada
-                # Por defecto usaremos una cuenta puente o evitar doble registro
+                contra_account = self._get_account_by_code(company_id, "3100")
+                
+                linked_acct = (
+                    self.db.query(ChartOfAccounts)
+                    .filter(ChartOfAccounts.id == account.linked_account_id)
+                    .first()
+                )
+                account_name = linked_acct.name if linked_acct else f"Cuenta #{account.linked_account_id}"
+                
                 je = self._create_journal_entry(
                     company_id=company_id,
                     description=description or f"Ingreso a {account.name}",
@@ -335,10 +383,10 @@ class TreasuryService:
                             f"Ingreso caja - {account.name}",
                         ),
                         (
-                            account.linked_account_id,
+                            contra_account.id if contra_account else account.linked_account_id,
                             Decimal("0.00"),
                             amount,
-                            f"Contra partida",
+                            f"Contra partida - Capital social",
                         ),
                     ],
                 )

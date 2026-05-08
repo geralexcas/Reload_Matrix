@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: process.env.VUE_APP_API_URL || `${window.location.protocol}//${window.location.hostname}:8001`,
+  baseURL: '/',
   headers: {
     'Content-Type': 'application/json'
   }

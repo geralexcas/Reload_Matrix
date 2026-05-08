@@ -32,7 +32,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/bank-accounts/`,
+        `/api/v1/treasury/bank-accounts/`,
         { params: { skip, limit } }
       )
       commit('setBankAccounts', res.data)
@@ -49,7 +49,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.post(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/bank-accounts/`,
+        `/api/v1/treasury/bank-accounts/`,
         accountData
       )
       return res
@@ -66,7 +66,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.put(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/bank-accounts/${accountId}`,
+        `/api/v1/treasury/bank-accounts/${accountId}`,
         data
       )
       return res
@@ -83,7 +83,7 @@ const actions = {
     commit('clearError')
     try {
       await api.delete(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/bank-accounts/${accountId}`
+        `/api/v1/treasury/bank-accounts/${accountId}`
       )
       return { status: 'success' }
     } catch (err) {
@@ -99,7 +99,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/cash-accounts/`,
+        `/api/v1/treasury/cash-accounts/`,
         { params: { skip, limit } }
       )
       commit('setCashAccounts', res.data)
@@ -117,7 +117,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.post(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/cash-accounts/`,
+        `/api/v1/treasury/cash-accounts/`,
         accountData
       )
       return res
@@ -134,7 +134,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.put(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/cash-accounts/${accountId}`,
+        `/api/v1/treasury/cash-accounts/${accountId}`,
         data
       )
       return res
@@ -151,7 +151,7 @@ const actions = {
     commit('clearError')
     try {
       await api.delete(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/cash-accounts/${accountId}`
+        `/api/v1/treasury/cash-accounts/${accountId}`
       )
       return { status: 'success' }
     } catch (err) {
@@ -167,7 +167,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.post(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/deposit/`,
+        `/api/v1/treasury/deposit/`,
         data
       )
       return res
@@ -184,7 +184,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.post(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/withdraw/`,
+        `/api/v1/treasury/withdraw/`,
         data
       )
       return res
@@ -201,7 +201,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.post(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/transfer/`,
+        `/api/v1/treasury/transfer/`,
         data
       )
       return res
@@ -218,7 +218,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/transactions/`,
+        `/api/v1/treasury/transactions/`,
         { params: { account_type: accountType, transaction_type: transactionType, date_from: dateFrom, date_to: dateTo, skip, limit } }
       )
       commit('setTransactions', res.data)
@@ -236,7 +236,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/summary/`
+        `/api/v1/treasury/summary/`
       )
       commit('setTreasurySummary', res.data)
       return res
@@ -253,7 +253,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/cash-flow/`,
+        `/api/v1/treasury/cash-flow/`,
         { params: { date_from: dateFrom, date_to: dateTo } }
       )
       commit('setCashFlow', res.data)
@@ -271,7 +271,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/checks/`,
+        `/api/v1/treasury/checks/`,
         { params: { bank_account_id: bankAccountId, status, skip, limit } }
       )
       commit('setChecks', res.data)
@@ -289,7 +289,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.post(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/checks/`,
+        `/api/v1/treasury/checks/`,
         data
       )
       return res
@@ -306,7 +306,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.put(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/checks/${checkId}/status/`,
+        `/api/v1/treasury/checks/${checkId}/status/`,
         { status }
       )
       return res
@@ -323,7 +323,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.post(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/reconciliations/`,
+        `/api/v1/treasury/reconciliations/`,
         data
       )
       return res
@@ -340,7 +340,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/reconciliations/`,
+        `/api/v1/treasury/reconciliations/`,
         { params: { bank_account_id: bankAccountId, skip, limit } }
       )
       commit('setReconciliations', res.data)
@@ -358,7 +358,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.get(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/reconciliations/${reconId}/`
+        `/api/v1/treasury/reconciliations/${reconId}/`
       )
       commit('setCurrentReconciliation', res.data)
       return res
@@ -375,7 +375,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.post(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/reconciliations/${reconId}/match/`,
+        `/api/v1/treasury/reconciliations/${reconId}/match/`,
         data
       )
       return res
@@ -392,7 +392,7 @@ const actions = {
     commit('clearError')
     try {
       const res = await api.post(
-        `${process.env.VUE_APP_API_URL}/api/v1/treasury/reconciliations/${reconId}/complete/`
+        `/api/v1/treasury/reconciliations/${reconId}/complete/`
       )
       return res
     } catch (err) {
