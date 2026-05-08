@@ -174,9 +174,10 @@ class InventoryService:
                 **base_data,
                 sku=unique_sku,
                 barcode=barcode,
-                stock_level=Decimal("1.00"), # Serialized items are created unit by unit
-                skip_initial_stock_purchase=getattr(bulk_data, 'skip_initial_stock_purchase', False)
+                stock_level=Decimal("1.00") # Serialized items are created unit by unit
             )
+            # Ensure skip_initial_stock_purchase is set correctly without double-passing
+            item_data.skip_initial_stock_purchase = getattr(bulk_data, 'skip_initial_stock_purchase', False)
             
             try:
                 db_product = self.create_product(item_data, company_id)
@@ -260,7 +261,7 @@ class InventoryService:
                 if existing_product:
                     raise ValueError("Product with this barcode already exists")
 
-            for key, value in product.model_dump().items():
+            for key, value in product.model_dump(exclude={'skip_initial_stock_purchase'}).items():
                 setattr(db_product, key, value)
             self.db.commit()
             self.db.refresh(db_product)
