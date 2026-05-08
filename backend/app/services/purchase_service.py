@@ -64,6 +64,14 @@ class PurchaseService:
         user_id: int = None,
     ) -> Purchase:
         """Create a new purchase invoice with items"""
+        # Verify purchase number doesn't already exist to prevent duplicates
+        existing = self.db.query(Purchase).filter(
+            Purchase.purchase_number == purchase_data.purchase_number,
+            Purchase.company_id == company_id
+        ).first()
+        if existing:
+            raise ValueError(f"Ya existe una compra con el número {purchase_data.purchase_number}. Use otro número o edite la compra existente.")
+
         # Verify company exists
         db_company = (
             self.db.query(company_model.Company)
@@ -389,6 +397,17 @@ class PurchaseService:
         # Only allow updates for DRAFT or ISSUED status
         if db_purchase.status not in ["DRAFT", "ISSUED"]:
             raise ValueError("Cannot update purchase in current status")
+
+        # Check if purchase number already exists (excluding current purchase)
+        new_purchase_number = purchase_data.purchase_number
+        if new_purchase_number and new_purchase_number != db_purchase.purchase_number:
+            existing = self.db.query(Purchase).filter(
+                Purchase.purchase_number == new_purchase_number,
+                Purchase.company_id == company_id,
+                Purchase.id != purchase_id
+            ).first()
+            if existing:
+                raise ValueError(f"Ya existe otra compra con el número {new_purchase_number}. Use un número diferente.")
 
         # Store original status to detect changes
         original_status = db_purchase.status

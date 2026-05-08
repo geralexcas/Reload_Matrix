@@ -163,7 +163,7 @@
       <small class="form-text">Precio al que se vende el producto</small>
     </div>
     
-    <div class="form-group">
+    <div class="form-group" v-if="!isPurchaseFlow">
       <label for="stock_level">Nivel de Stock Actual:*</label>
       <input 
         type="number" 
@@ -178,7 +178,7 @@
       <small class="form-text" v-if="is_serialized">Calculado automáticamente por seriales.</small>
     </div>
     
-    <div class="form-group">
+    <div class="form-group" v-if="!isPurchaseFlow">
       <label for="payment_method">Forma de Pago:*</label>
       <select 
         id="payment_method" 
@@ -189,6 +189,11 @@
           {{ method.label }}
         </option>
       </select>
+    </div>
+
+    <!-- Mensaje informativo cuando estamos en flujo de compra -->
+    <div class="alert alert-info" v-if="isPurchaseFlow">
+      <p><strong>Nota:</strong> Al crear este producto desde una compra o PDF, el stock se inicializa en 0. La cantidad y el pago se registrarán automáticamente al finalizar la compra principal.</p>
     </div>
     
     <div class="form-group">
@@ -298,6 +303,9 @@ export default {
   computed: {
     serialCount() {
       return this.barcodes_input.split('\n').map(s => s.trim()).filter(s => s !== '').length
+    },
+    isPurchaseFlow() {
+      return !!this.$route.query.fromPdfItem || !!this.$route.query.fromPurchase
     }
   },
   watch: {
@@ -454,15 +462,22 @@ export default {
       
       this.isLoading = true
       
+      // Si es flujo de compra, forzamos stock_level a 0 y activamos el flag para el backend
+      const submissionData = { ...this.form }
+      if (this.isPurchaseFlow) {
+        submissionData.stock_level = 0
+        submissionData.skip_initial_stock_purchase = true
+      }
+
       if (this.is_serialized && !this.editMode) {
         const barcodes = this.barcodes_input.split('\n').map(s => s.trim()).filter(s => s !== '')
         this.$emit('save', {
-          ...this.form,
+          ...submissionData,
           barcodes,
           is_bulk: true
         })
       } else {
-        this.$emit('save', this.form)
+        this.$emit('save', submissionData)
       }
     },
     
@@ -633,5 +648,20 @@ export default {
 
 .btn-add-category:hover {
   background-color: #5a6268;
+}
+</style>
+<style scoped>
+.alert-info {
+  background-color: #e3f2fd;
+  color: #0c5460;
+  border: 1px solid #bee5eb;
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+}
+
+.alert-info p {
+  margin: 0;
+  font-size: 0.9rem;
 }
 </style>

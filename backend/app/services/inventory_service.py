@@ -30,7 +30,7 @@ class InventoryService:
 
         from sqlalchemy.exc import IntegrityError
         
-        db_product = Product(**product.model_dump(), company_id=company_id)
+        db_product = Product(**product.model_dump(exclude={'skip_initial_stock_purchase'}), company_id=company_id)
         self.db.add(db_product)
         try:
             self.db.commit()
@@ -40,7 +40,8 @@ class InventoryService:
         self.db.refresh(db_product)
 
         # Create accounting entry or purchase if initial stock is provided
-        if db_product.stock_level > 0 and db_product.purchase_price > 0:
+        # skip_initial_stock_purchase allows avoiding double purchase records when creating products during a purchase flow
+        if db_product.stock_level > 0 and db_product.purchase_price > 0 and not getattr(product, 'skip_initial_stock_purchase', False):
             try:
                 payment_method_str = "CASH"
                 if product.payment_method:
@@ -173,7 +174,8 @@ class InventoryService:
                 **base_data,
                 sku=unique_sku,
                 barcode=barcode,
-                stock_level=Decimal("1.00") # Serialized items are created unit by unit
+                stock_level=Decimal("1.00"), # Serialized items are created unit by unit
+                skip_initial_stock_purchase=getattr(bulk_data, 'skip_initial_stock_purchase', False)
             )
             
             try:

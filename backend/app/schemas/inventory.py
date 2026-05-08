@@ -59,11 +59,12 @@ class ProductBase(BaseModel):
 
 
 class ProductCreate(ProductBase):
-    pass
+    skip_initial_stock_purchase: Optional[bool] = False
 
 
 class ProductBulkCreate(ProductBase):
     barcodes: List[str] = Field(..., min_items=1)
+    skip_initial_stock_purchase: Optional[bool] = False
 
 
 
