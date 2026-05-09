@@ -82,7 +82,7 @@
             </tr>
           </tbody>
           <tfoot>
-            <tr class="totals-row">
+            <tr v-if="libroCompras && libroCompras.totals" class="totals-row">
               <td colspan="4"><strong>TOTALES ({{ libroCompras.totals.num_facturas || 0 }} facturas)</strong></td>
               <td class="text-right"><strong>{{ formatCurrency(libroCompras.totals.total_base_iva_19) }}</strong></td>
               <td class="text-right"><strong>{{ formatCurrency(libroCompras.totals.total_iva_19) }}</strong></td>
@@ -132,9 +132,10 @@ export default {
         if (this.dateTo) params.date_to = this.dateTo
 
         const res = await api.get(
-          `${process.env.VUE_APP_API_URL}/api/v1/accounting/libro-compras/`,
+          '/api/v1/accounting/libro-compras/',
           { params }
         )
+        console.log('Libro Compras Data:', res.data)
         this.libroCompras = res.data
       } catch (err) {
         this.error = err.response?.data?.detail || 'Error al generar el Libro de Compras'

@@ -305,7 +305,7 @@ export default {
       return this.barcodes_input.split('\n').map(s => s.trim()).filter(s => s !== '').length
     },
     isPurchaseFlow() {
-      return !!this.$route.query.fromPdfItem || !!this.$route.query.fromPurchase
+      return !!this.$route.query.fromPdfItem || !!this.$route.query.fromPurchase || this.$route.query.redirect === '/purchases'
     }
   },
   watch: {

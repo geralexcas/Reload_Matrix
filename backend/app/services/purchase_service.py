@@ -163,8 +163,7 @@ class PurchaseService:
             )
             self.db.add(db_item)
 
-        self.db.commit()
-        self.db.refresh(db_purchase)
+        self.db.flush()
 
         # Update inventory and create payment if purchase is issued
         if db_purchase.status in ["ISSUED", "PAID", "PARTIAL"]:
@@ -192,16 +191,20 @@ class PurchaseService:
                         created_by=user_id,
                     )
                     self.db.add(db_payment)
+                    self.db.flush()
 
                     # Auto update status to PAID since payment covers total amount
                     db_purchase.status = "PAID"
 
-                    self.db.commit()
-                    self.db.refresh(db_payment)
                     # Create treasury transaction to decrease bank/cash balance
                     self._create_treasury_transaction(db_purchase, db_payment, company_id)
-                else:
-                    self.db.commit()
+
+        try:
+            self.db.commit()
+            self.db.refresh(db_purchase)
+        except Exception as e:
+            self.db.rollback()
+            raise ValueError(f"Error al guardar la compra: {str(e)}")
 
         return db_purchase
 

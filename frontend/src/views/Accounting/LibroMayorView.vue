@@ -101,6 +101,11 @@
         </div>
       </div>
 
+      <div v-if="libroMayor.accounts.length === 0" class="empty-state">
+        <i class="fas fa-file-invoice"></i>
+        <p>No hay movimientos contables en el período seleccionado</p>
+      </div>
+
       <div class="grand-totals">
         <h4>Totales Generales</h4>
         <div class="totals-row">
@@ -142,13 +147,15 @@ export default {
   computed: {
     isBalanced() {
       if (!this.libroMayor) return true
-      return Math.abs(
-        Number(this.libroMayor.grand_total_debits) - Number(this.libroMayor.grand_total_credits)
-      ) < 0.01
+      const debits = Number(this.libroMayor.grand_total_debits) || 0
+      const credits = Number(this.libroMayor.grand_total_credits) || 0
+      return Math.abs(debits - credits) < 0.01
     },
     balanceDifference() {
       if (!this.libroMayor) return 0
-      return Number(this.libroMayor.grand_total_debits) - Number(this.libroMayor.grand_total_credits)
+      const debits = Number(this.libroMayor.grand_total_debits) || 0
+      const credits = Number(this.libroMayor.grand_total_credits) || 0
+      return debits - credits
     }
   },
   methods: {
@@ -163,7 +170,7 @@ export default {
         if (this.accountCode) params.account_code = this.accountCode
 
         const res = await api.get(
-          `${process.env.VUE_APP_API_URL}/api/v1/accounting/libro-mayor/`,
+          '/api/v1/accounting/libro-mayor/',
           { params }
         )
         this.libroMayor = res.data
@@ -194,7 +201,9 @@ export default {
       return `${f} - ${t}`
     },
     formatCurrency(value) {
+      if (value === undefined || value === null) return '$ 0'
       const num = Number(value)
+      if (isNaN(num)) return '$ 0'
       return new Intl.NumberFormat('es-CO', {
         style: 'currency',
         currency: 'COP',
@@ -342,6 +351,17 @@ export default {
   margin: 2px 0;
   color: #6c757d;
   font-size: 0.9rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6c757d;
+}
+
+.empty-state i {
+  font-size: 3rem;
+  margin-bottom: 15px;
 }
 
 .account-section {

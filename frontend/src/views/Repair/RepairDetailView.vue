@@ -396,7 +396,7 @@ export default {
       loading.value = true
       error.value = null
       try {
-        const res = await api.get(`/api/v1/repair/${orderId.value}/`, {
+        const res = await api.get(`/api/v1/repair/${orderId.value}`, {
           params: { company_id: companyId.value }
         })
         order.value = res.data
@@ -487,7 +487,7 @@ export default {
           data.actual_delivery_date = new Date(editForm.value.actual_delivery_date).toISOString()
         }
 
-        await api.put(`/api/v1/repair/${orderId.value}/`, data, {
+        await api.put(`/api/v1/repair/${orderId.value}`, data, {
           params: { company_id: companyId.value }
         })
         
@@ -589,7 +589,7 @@ export default {
     const deleteItem = async (itemId) => {
       if (!confirm('¿Está seguro de eliminar este servicio?')) return
       try {
-        await api.delete(`/api/v1/repair/${orderId.value}/items/${itemId}/`, {
+        await api.delete(`/api/v1/repair/${orderId.value}/items/${itemId}`, {
           params: { company_id: companyId.value }
         })
         await fetchOrder()

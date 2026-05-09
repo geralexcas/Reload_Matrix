@@ -495,6 +495,14 @@ class AccountingService:
 
         Cumple con: Decreto 2420/2015, Art. 1.6.1.4.1 ET
         """
+        company = (
+            self.db.query(company_model.Company)
+            .filter(company_model.Company.id == company_id)
+            .first()
+        )
+        if not company:
+            return {"error": "Company not found"}
+
         accounts_query = self.db.query(ChartOfAccounts).filter(
             ChartOfAccounts.company_id == company_id,
             ChartOfAccounts.is_active == True,
@@ -607,6 +615,8 @@ class AccountingService:
 
         return {
             "company_id": company_id,
+            "company_name": company.name,
+            "company_nit": company.nit,
             "date_from": date_from,
             "date_to": date_to,
             "accounts": result_accounts,
@@ -641,18 +651,20 @@ class AccountingService:
 
         if hasattr(invoice, "items") and invoice.items:
             for item in invoice.items:
-                line_base = item.line_total - item.tax_amount
+                item_tax_amount = item.tax_amount if item.tax_amount is not None else Decimal("0.00")
+                line_base = item.line_total - item_tax_amount
                 if line_base < 0:
                     line_base = Decimal("0.00")
 
-                tax_rate = self._parse_tax_rate(item.tax_rate)
+                tax_rate_val = item.tax_rate if item.tax_rate is not None else Decimal("0.00")
+                tax_rate = self._parse_tax_rate(tax_rate_val)
 
                 if self._is_approx_equal(tax_rate, Decimal("0.19")):
                     base_iva_19 += line_base
-                    iva_19 += item.tax_amount
+                    iva_19 += item_tax_amount
                 elif self._is_approx_equal(tax_rate, Decimal("0.05")):
                     base_iva_5 += line_base
-                    iva_5 += item.tax_amount
+                    iva_5 += item_tax_amount
                 else:
                     base_no_iva += item.line_total
 
@@ -899,10 +911,13 @@ class AccountingService:
             inv_number = getattr(inv, "invoice_number", getattr(inv, "purchase_number", "N/A"))
             inv_date = getattr(inv, "issue_date", getattr(inv, "purchase_date", None))
             estado_dian = getattr(inv, "estado_dian", "NO_APLICA")
+            
+            source_prefix = "INV" if hasattr(inv, "invoice_number") else "PUR"
+            unique_id = f"{source_prefix}-{inv.id}"
 
             entries.append(
                 {
-                    "invoice_id": inv.id,
+                    "invoice_id": unique_id,
                     "invoice_number": inv_number,
                     "invoice_date": inv_date,
                     "partner_nit": partner_nit,

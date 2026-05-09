@@ -132,7 +132,7 @@ export default {
         if (this.dateTo) params.date_to = this.dateTo
 
         const res = await api.get(
-          `${process.env.VUE_APP_API_URL}/api/v1/accounting/libro-ventas/`,
+          '/api/v1/accounting/libro-ventas/',
           { params }
         )
         this.libroVentas = res.data

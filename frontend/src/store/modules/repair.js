@@ -50,7 +50,7 @@ const actions = {
   },
   async updateStatus({ commit }, { orderId, status, company_id }) {
     try {
-      const res = await api.put(`/api/v1/repair/${orderId}/status/`, { status }, {
+      const res = await api.put(`/api/v1/repair/${orderId}`, { status }, {
         params: { company_id }
       })
       commit('update_order_status', { id: orderId, status: res.data.status })

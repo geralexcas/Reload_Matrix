@@ -185,34 +185,6 @@ def update_repair_order(
     return db_repair_order
 
 
-@router.put("/{repair_order_id}", response_model=rep_schema.RepairOrderResponse)
-def update_repair_order(
-    repair_order_id: int,
-    repair_order: rep_schema.RepairOrderUpdate,
-    company_id: int,
-    db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
-):
-    """
-    Update a repair order.
-    """
-    db_company = (
-        db.query(company_model.Company)
-        .filter(company_model.Company.id == company_id)
-        .first()
-    )
-    if db_company is None:
-        raise HTTPException(status_code=404, detail="Company not found")
-
-    service = repair_service.RepairService(db)
-    db_repair_order = service.update_repair_order(
-        repair_order_id, repair_order, company_id
-    )
-    if db_repair_order is None:
-        raise HTTPException(status_code=404, detail="Repair order not found")
-    return db_repair_order
-
-
 @router.post("/{repair_order_id}/items/", response_model=rep_schema.RepairItemResponse)
 def create_repair_item(
     repair_order_id: int,
