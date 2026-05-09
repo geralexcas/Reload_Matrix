@@ -155,6 +155,7 @@ class PurchaseService:
                 description=item.description,
                 quantity=item.quantity,
                 unit_price=item.unit_price,
+                serial_number=item.serial_number,
                 discount_percent=item.discount_percent,
                 discount_amount=values["discount_amount"],
                 tax_rate=item.tax_rate,

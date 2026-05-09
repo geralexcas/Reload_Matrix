@@ -79,6 +79,7 @@ class InventoryService:
                         description=f"Stock inicial - {db_product.name}",
                         quantity=db_product.stock_level,
                         unit_price=db_product.purchase_price,
+                        serial_number=db_product.barcode,
                         line_total=total_amount
                     )
                     self.db.add(db_purchase_item)
