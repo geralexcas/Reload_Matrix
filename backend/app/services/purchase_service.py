@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional, Dict
 from datetime import datetime, date, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from app.models.sql.purchases import Purchase, PurchaseItem, PurchasePayment
 from app.models.sql import company as company_model
 from app.models.sql.partners import Partner
@@ -25,9 +25,14 @@ class PurchaseService:
         self, item: purchase_schema.PurchaseItemCreate, company_regimen: str
     ) -> dict:
         """Calculate item values including discounts and taxes"""
-        quantity = Decimal(str(item.quantity))
-        unit_price = Decimal(str(item.unit_price))
-        discount_percent = Decimal(str(item.discount_percent))
+        try:
+            quantity = Decimal(str(item.quantity)) if item.quantity is not None else Decimal("0.00")
+            unit_price = Decimal(str(item.unit_price)) if item.unit_price is not None else Decimal("0.00")
+            discount_percent = Decimal(str(item.discount_percent)) if item.discount_percent is not None else Decimal("0.00")
+        except (ValueError, TypeError, InvalidOperation) as e:
+            import logging
+            logging.error(f"Error convirtiendo valores de ítem a Decimal: {e} - Item: {item}")
+            raise ValueError(f"Valor numérico inválido en el ítem: {e}")
 
         subtotal = quantity * unit_price
         discount_amount = subtotal * (discount_percent / 100)
@@ -135,10 +140,8 @@ class PurchaseService:
             discount_amount=purchase_data.discount_amount,
             total_amount=total_amount,
             currency=purchase_data.currency,
-            payment_method=purchase_data.payment_method.value,
-            status=purchase_data.status.value
-            if purchase_data.status
-            else purchase_schema.PurchaseStatusEnum.DRAFT.value,
+            payment_method=str(purchase_data.payment_method.value) if hasattr(purchase_data.payment_method, "value") else str(purchase_data.payment_method),
+            status=str(purchase_data.status.value) if purchase_data.status and hasattr(purchase_data.status, "value") else (str(purchase_data.status) if purchase_data.status else purchase_schema.PurchaseStatusEnum.DRAFT.value),
             notes=purchase_data.notes,
             company_id=company_id,
             created_by=user_id,

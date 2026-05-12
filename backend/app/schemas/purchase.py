@@ -192,6 +192,17 @@ class PurchaseWithItemsCreate(BaseModel):
     discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
     currency: str = Field(default="COP")
 
+    @model_validator(mode="before")
+    @classmethod
+    def convert_empty_to_none(cls, data):
+        if isinstance(data, dict):
+            for field in ["purchase_date", "due_date", "notes"]:
+                if field in data:
+                    val = data[field]
+                    if val == "" or val is None or val == "null" or val == "undefined":
+                        data[field] = None
+        return data
+
 
 # Statistics Schema
 class PurchaseStatistics(BaseModel):

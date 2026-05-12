@@ -11,7 +11,6 @@ from app.api.v1.deps import get_current_user
 
 router = APIRouter()
 
-
 def _verify_company(db: Session, company_id: int):
     db_company = (
         db.query(company_model.Company)
@@ -21,6 +20,8 @@ def _verify_company(db: Session, company_id: int):
     if not db_company:
         raise HTTPException(status_code=404, detail="Company not found")
 
+import logging
+logger = logging.getLogger(__name__)
 
 @router.post(
     "/",
@@ -42,10 +43,13 @@ def create_purchase(
     _verify_company(db, company_id)
     service = purchase_service.PurchaseService(db)
     try:
+        logger.info(f"Registrando compra para empresa {company_id}, usuario {current_user.id}")
         return service.create_purchase(purchase, company_id, current_user.id)
     except ValueError as e:
+        logger.warning(f"Error de validación al crear compra: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.exception(f"Error inesperado al crear compra: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Error creating purchase: {str(e)}"
         )
