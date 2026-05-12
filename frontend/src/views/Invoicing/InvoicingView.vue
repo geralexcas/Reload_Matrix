@@ -136,41 +136,78 @@
         <!-- Tarjeta: Agregar Productos -->
         <div class="card p-4 mb-4 bg-light">
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <h3 class="card-title mb-0">Agregar Productos</h3>
+            <h3 class="card-title mb-0">Agregar Productos / Servicios</h3>
             <button type="button" class="btn btn-warning font-weight-bold" @click="showAssemblyModal = true">
               <i class="fas fa-tools mr-1"></i> Armar Equipo
             </button>
           </div>
-          <div class="add-item-bar">
+
+          <!-- Fila 1: Selector de Producto o Modo Servicio Manual -->
+          <div class="add-item-row">
             <div class="form-group flex-2 mb-0">
+              <label class="form-label-sm">Producto del Inventario (opcional)</label>
               <select v-model="newItem.product_id" @change="onNewItemProductChange" class="form-control">
-                <option value="">Buscar y seleccionar producto...</option>
+                <option value="">-- Servicio / Item Manual --</option>
                 <option v-for="prod in products" :key="prod.id" :value="prod.id">
                   {{ prod.name }} - {{ formatCOP(prod.sale_price) }}
                 </option>
               </select>
             </div>
             <div class="form-group flex-2 mb-0">
-              <input type="text" v-model="newItem.description" placeholder="Nota / Descripción" class="form-control" />
+              <label class="form-label-sm">Descripción del ítem</label>
+              <input type="text" v-model="newItem.description" placeholder="Ej: Mano de obra, Limpieza química..." class="form-control" />
             </div>
-            <div class="form-group qty-group mb-0">
-              <label class="sr-only">Cantidad</label>
+          </div>
+
+          <!-- Fila 2: Precio, Cantidad, Descuento, IVA, Botón -->
+          <div class="add-item-row add-item-row-2 mt-2">
+            <div class="form-group mb-0">
+              <label class="form-label-sm">Precio Unitario</label>
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                <input
+                  type="number"
+                  v-model.number="newItem.unit_price"
+                  placeholder="0"
+                  min="0"
+                  class="form-control"
+                  :disabled="!!newItem.product_id"
+                  :title="newItem.product_id ? 'El precio se toma del inventario. Puede editarlo en la tabla de detalle.' : ''"
+                />
+              </div>
+            </div>
+            <div class="form-group mb-0">
+              <label class="form-label-sm">Cantidad</label>
               <input type="number" v-model.number="newItem.quantity" placeholder="1" min="1" class="form-control" />
             </div>
-            <div class="form-group qty-group mb-0">
-              <label class="sr-only">Descuento</label>
+            <div class="form-group mb-0">
+              <label class="form-label-sm">Descuento ($)</label>
               <input type="number" v-model.number="newItem.discount" placeholder="0" min="0" class="form-control" />
             </div>
             <div class="form-group checkbox-group mb-0">
+              <label class="form-label-sm">&nbsp;</label>
               <label class="checkbox-label">
                 <input type="checkbox" v-model="newItem.apply_tax" />
                 IVA (19%)
               </label>
             </div>
-            <button type="button" class="btn btn-primary" @click="addItem" :disabled="!newItem.product_id">
-              Agregar
-            </button>
+            <div class="form-group mb-0">
+              <label class="form-label-sm">&nbsp;</label>
+              <button
+                type="button"
+                class="btn btn-primary btn-block"
+                @click="addItem"
+                :disabled="!newItem.product_id && !newItem.description"
+              >
+                <i class="fas fa-plus mr-1"></i> Agregar
+              </button>
+            </div>
           </div>
+
+          <p v-if="!newItem.product_id" class="text-muted mt-2" style="font-size:0.82rem;">
+            <i class="fas fa-info-circle"></i>
+            Modo <strong>Servicio Manual</strong>: ingresa descripción y precio. No descuenta inventario.
+          </p>
         </div>
 
         <!-- Tarjeta: Detalle de Productos -->
@@ -195,16 +232,25 @@
               <tr v-for="(item, idx) in form.items" :key="idx" :class="{'bg-light': item.assembly_group_id}">
                 <td>
                   <span v-if="item.assembly_group_id" class="badge badge-info mr-2" title="Parte de Equipo Armado"><i class="fas fa-tools"></i></span>
+                  <span v-if="!item.product_id" class="badge badge-secondary mr-2">Servicio</span>
                   {{ getProductName(item.product_id) }}
                 </td>
                 <td>
-                  <span v-if="item.assembly_name" class="font-weight-bold text-primary mr-1">[{{ item.assembly_name }}]</span>
-                  {{ item.description || '-' }}
+                  <input type="text" v-model="item.description" class="form-control form-control-sm" placeholder="Descripción..." />
                 </td>
-                <td class="text-right">{{ formatCOP(item.unit_price) }}</td>
-                <td class="text-center">{{ item.quantity }}</td>
-                <td class="text-right">{{ formatCOP(item.discount) }}</td>
-                <td class="text-right">{{ formatCOP(getItemSubtotal(item)) }}</td>
+                <td class="text-right">
+                  <div class="input-group input-group-sm justify-content-end">
+                    <span class="input-group-text">$</span>
+                    <input type="number" v-model.number="item.unit_price" class="form-control form-control-sm text-right" style="max-width: 120px;" />
+                  </div>
+                </td>
+                <td class="text-center">
+                  <input type="number" v-model.number="item.quantity" class="form-control form-control-sm text-center mx-auto" style="max-width: 70px;" min="1" />
+                </td>
+                <td class="text-right">
+                  <input type="number" v-model.number="item.discount" class="form-control form-control-sm text-right ml-auto" style="max-width: 100px;" min="0" />
+                </td>
+                <td class="text-right font-weight-bold">{{ formatCOP(getItemSubtotal(item)) }}</td>
                 <td class="text-center">
                   <button type="button" class="btn-icon text-danger" @click="removeItem(idx)" title="Eliminar">🗑️</button>
                 </td>
@@ -351,12 +397,14 @@ export default {
         is_paid: true,
         payment_method: 'CASH',
         amount_received: null,
+        repair_id: null,
         items: []
       },
       newItem: {
         product_id: '',
         description: '',
         quantity: 1,
+        unit_price: 0,
         discount: 0,
         apply_tax: true
       },
@@ -494,21 +542,27 @@ export default {
       }
     },
     getProductName(productId) {
+      if (!productId) return 'Servicio / Mano de Obra';
       const p = this.products.find(x => x.id === productId);
-      return p ? p.name : 'Unknown';
+      return p ? p.name : 'Desconocido';
     },
     getItemSubtotal(item) {
       return (item.quantity * item.unit_price) - (Number(item.discount) || 0);
     },
     addItem() {
-      if (!this.newItem.product_id) return;
-      const product = this.products.find(p => p.id === this.newItem.product_id)
+      if (!this.newItem.product_id && !this.newItem.description) {
+        alert("Debe seleccionar un producto o ingresar una descripción para el servicio manual.");
+        return;
+      }
+      
+      const product = this.newItem.product_id ? this.products.find(p => p.id === this.newItem.product_id) : null;
+      const unitPrice = product ? (product.sale_price || product.price || 0) : (this.newItem.unit_price || 0);
       
       this.form.items.push({
-        product_id: this.newItem.product_id,
-        description: this.newItem.description,
+        product_id: this.newItem.product_id || null,
+        description: this.newItem.description || (product ? product.name : ''),
         quantity: this.newItem.quantity || 1,
-        unit_price: product ? (product.sale_price || product.price || 0) : 0,
+        unit_price: unitPrice,
         discount: this.newItem.discount || 0,
         tax_rate: this.newItem.apply_tax ? 19 : 0
       })
@@ -518,6 +572,7 @@ export default {
         product_id: '',
         description: '',
         quantity: 1,
+        unit_price: 0,
         discount: 0,
         apply_tax: true
       }
@@ -584,23 +639,29 @@ export default {
           payment_account_type: paymentAccountType,
           payment_account_id: paymentAccountId,
           wallet_amount_applied: this.walletAmountToApply,
+          repair_id: this.form.repair_id,
           reference: `Factura Venta INV-${Date.now()}`,
 
           items: this.form.items.map(item => {
-            let desc = item.description;
+            let desc = item.description || '';
             if (!item.assembly_group_id) {
-              const product = this.products.find(p => p.id === item.product_id)
-              desc = item.description ? `${product.name} - ${item.description}` : product.name
+              if (item.product_id) {
+                // Producto del inventario: combinar nombre del producto con descripción adicional
+                const product = this.products.find(p => p.id === item.product_id)
+                const productName = product ? product.name : ''
+                desc = item.description ? `${productName} - ${item.description}` : productName
+              }
+              // Si NO hay product_id (servicio manual), usar la descripción tal cual
             }
             const sub = this.getItemSubtotal(item)
-            const tax_amt = sub * (item.tax_rate / 100) || 0
+            const tax_amt = sub * ((item.tax_rate || 0) / 100)
             return {
               description: desc,
-              product_id: parseInt(item.product_id) || null,
+              product_id: item.product_id ? parseInt(item.product_id) : null,
               quantity: item.quantity,
               unit_price: item.unit_price,
-              discount: item.discount, 
-              tax_rate: item.tax_rate,
+              discount: item.discount,
+              tax_rate: item.tax_rate || 0,
               tax_amount: tax_amt,
               line_total: sub + tax_amt,
               assembly_group_id: item.assembly_group_id || null
@@ -705,6 +766,44 @@ export default {
       this.form.partner_id = parseInt(lastPartnerId);
       this.showForm = true; // ensure form is visible
       sessionStorage.removeItem('lastCreatedPartnerId');
+    }
+    
+    // Handle Repair Order redirection
+    const repairId = this.$route.query.repair_id;
+    if (repairId) {
+      this.loading = true;
+      try {
+        const response = await api.get(`/api/v1/repair/${repairId}`, {
+          params: { company_id: this.companyId }
+        });
+        const repair = response.data;
+        
+        this.form.partner_id = repair.partner_id;
+        this.form.repair_id = parseInt(repairId);
+        this.form.notes = `Orden de Reparación #${repair.order_number}`;
+        
+        // Map repair items to invoice items
+        this.form.items = (repair.items || [])
+          .filter(item => {
+            // Filtrar ítem de identificación del equipo: costo 0 y sin producto asociado
+            return !(Number(item.unit_cost) === 0 && !item.product_id);
+          })
+          .map(item => {
+            return {
+              product_id: item.product_id,
+              description: item.description,
+              quantity: item.quantity,
+              unit_price: Number(item.unit_cost),
+              discount: Number(item.discount) || 0,
+              tax_rate: 19 // Default tax rate for Colombian invoices
+            };
+          });
+        
+        this.showForm = true;
+      } catch (err) {
+        console.error('Error fetching repair order:', err);
+        alert('Error al cargar datos de la orden de reparación');
+      }
     }
 
     this.loading = false
@@ -879,26 +978,43 @@ export default {
   border-color: #f5222d;
 }
 
-.add-item-bar {
+.add-item-row {
   display: flex;
   gap: 1rem;
   align-items: flex-end;
+  flex-wrap: wrap;
 }
-.flex-2 { flex: 2; }
+.add-item-row-2 {
+  align-items: flex-end;
+}
+.add-item-row .form-group {
+  min-width: 100px;
+}
+.flex-2 { flex: 2; min-width: 180px; }
 .qty-group { width: 90px; }
+.form-label-sm {
+  display: block;
+  font-size: 0.78rem;
+  color: #666;
+  margin-bottom: 0.3rem;
+  font-weight: 500;
+}
 .checkbox-group {
   display: flex;
-  align-items: center;
-  height: 38px;
-  padding: 0 10px;
+  flex-direction: column;
 }
 .checkbox-label {
   display: flex;
   align-items: center;
   gap: 5px;
   margin: 0;
+  height: 38px;
   font-weight: normal !important;
   cursor: pointer;
+}
+.btn-block {
+  width: 100%;
+  white-space: nowrap;
 }
 
 .detail-table {

@@ -250,13 +250,6 @@
       </div>
     </div>
     
-    <!-- POS Payment Modal -->
-    <POSPaymentModal
-      v-if="showPOS"
-      :totalAmount="calculatedTotal"
-      @confirm="onPOSConfirm"
-      @cancel="showPOS = false"
-    />
 
     <!-- Repair Print Modal -->
     <RepairPrintModal
@@ -276,13 +269,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/services/api'
-import POSPaymentModal from '@/components/POSPaymentModal.vue'
 import RepairPrintModal from '@/components/Repair/RepairPrintModal.vue'
 
 export default {
   name: 'RepairDetailView',
   components: {
-    POSPaymentModal,
     RepairPrintModal
   },
   setup() {
@@ -300,7 +291,6 @@ export default {
     const technicians = ref([])
     const products = ref([])
     const showAddItemModal = ref(false)
-    const showPOS = ref(false)
     const showPrintModal = ref(false)
 
     const currentCompany = computed(() => store.getters['company/getCompany'] || {})
@@ -501,33 +491,10 @@ export default {
     }
 
     const generateInvoice = () => {
-      showPOS.value = true
-    }
-
-    const onPOSConfirm = async (paymentData) => {
-      generating.value = true
-      try {
-        await store.dispatch('repair/generateInvoice', {
-          orderId: orderId.value,
-          company_id: companyId.value,
-          paymentData: {
-             is_paid: paymentData.is_paid,
-             payment_method: paymentData.payment_method,
-             amount_paid: paymentData.amount_paid,
-             payment_account_type: paymentData.payment_account_type,
-             payment_account_id: paymentData.payment_account_id,
-             reference: paymentData.reference
-          }
-        })
-        showPOS.value = false
-        await fetchOrder()
-        alert('Factura y pago generados exitosamente')
-      } catch (err) {
-        showPOS.value = false
-        alert(err.response?.data?.detail || 'Error al generar factura')
-      } finally {
-        generating.value = false
-      }
+      router.push({
+        path: '/invoicing',
+        query: { repair_id: orderId.value }
+      })
     }
 
     const onProductSelect = () => {
@@ -653,8 +620,6 @@ export default {
       toggleEdit,
       saveOrder,
       generateInvoice,
-      onPOSConfirm,
-      showPOS,
       onProductSelect,
       addItem,
       deleteItem,

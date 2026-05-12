@@ -8,6 +8,7 @@ from app.models.sql.accounting.journal_entry import JournalEntry
 from app.services.inventory_service import InventoryService
 from app.services.accounting_service import AccountingService
 from app.services.treasury_service import TreasuryService
+from app.models.sql.repair import RepairOrder
 
 
 class InvoicingService:
@@ -229,6 +230,14 @@ class InvoicingService:
 
         self.db.commit()
         self.db.refresh(db_invoice)
+
+        # Link to Repair Order if provided
+        if invoice_with_items.repair_id:
+            repair_order = self.db.query(RepairOrder).filter(RepairOrder.id == invoice_with_items.repair_id).first()
+            if repair_order:
+                repair_order.invoice_id = db_invoice.id
+                repair_order.status = "DELIVERED"
+                self.db.flush()
 
         # Deduct inventory for invoice items that have products linked
         from app.services.inventory_service import InventoryService

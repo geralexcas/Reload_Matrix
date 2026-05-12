@@ -150,6 +150,32 @@
         <div class="legal-disclaimer">
           <p><strong>Nota:</strong> La empresa no responde por golpes, averiaturas causadas por mal manejo de las partes, por problemas ocasionados en el fluido eléctrico, por incorrecta instalación, así como daños ocasionados por desastres naturales. Igualmente no se responsabiliza por daños o perjuicios causados por perdida de información. La garantía se hace efectiva presentando esta factura y el producto en sus empaques originales: si al momento de hacerse efectiva esta garantía es necesario reemplazar la parte, esta continuará con el mismo tiempo de garantía que le reste al producto. La garantía se pierde si los sellos de seguridad presentan anomalías o rupturas. Las normas relativas a la letra de cambio se aplicaran a las facturas de que trata la ley 1231 de Julio 17 de 2008/Artículo 5º. El artículo 779 del Decreto 410 de 1971. Código de Comercio.</p>
         </div>
+
+        <!-- Pie de Página de Contacto -->
+        <div class="invoice-footer">
+          <div class="footer-divider"></div>
+          <div class="footer-contact">
+            <span class="footer-item">
+              <i class="footer-icon">📍</i>
+              Carrera 24 # 15-60 C.C. San Agustín Local 128, Pasto – Nariño
+            </span>
+            <span class="footer-sep">|</span>
+            <span class="footer-item">
+              <i class="footer-icon">📞</i>
+              Tel: 310 313 5881
+            </span>
+            <span class="footer-sep">|</span>
+            <span class="footer-item">
+              <i class="footer-icon">🌐</i>
+              www.evocomputo.com
+            </span>
+            <span class="footer-sep">|</span>
+            <span class="footer-item">
+              <i class="footer-icon">✉</i>
+              evocomputo@evocomputo.com
+            </span>
+          </div>
+        </div>
       </div>
 
       <!-- Layout POS (Ticket) - Simplified -->
@@ -191,6 +217,15 @@
         <div class="pos-totals">
           <div class="pos-row"><span>TOTAL:</span> <span>{{ formatCOP(invoice.total_amount) }}</span></div>
         </div>
+        <div class="pos-divider">================================</div>
+        <div class="pos-contact">
+          <p>📍 Cra 24 # 15-60 C.C. San Agustín L.128</p>
+          <p>Pasto – Nariño</p>
+          <p>📞 Tel: 310 313 5881</p>
+          <p>🌐 www.evocomputo.com</p>
+          <p>✉ evocomputo@evocomputo.com</p>
+        </div>
+        <div class="pos-divider">================================</div>
         <div class="pos-footer">¡Gracias por su compra!</div>
       </div>
     </div>
@@ -496,8 +531,49 @@ export default {
   text-align: justify;
 }
 
+/* Pie de Página de Contacto - Standard Layout */
+.invoice-footer {
+  margin-top: 20px;
+}
+.footer-divider {
+  height: 2px;
+  background: linear-gradient(to right, #003366, #0066cc, #003366);
+  margin-bottom: 10px;
+  border-radius: 2px;
+}
+.footer-contact {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  background-color: #f0f4ff;
+  border-radius: 6px;
+  font-size: 9.5px;
+  color: #003366;
+  font-weight: 500;
+}
+.footer-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.footer-icon {
+  font-style: normal;
+  font-size: 10px;
+}
+.footer-sep {
+  color: #003366;
+  opacity: 0.4;
+  font-weight: 300;
+}
+
 /* POS LAYOUT */
 .pos-layout { width: 80mm; font-family: 'Courier New', monospace; font-size: 12px; }
 .pos-logo { width: 60mm; height: auto; margin-bottom: 10px; }
 .pos-row { display: flex; justify-content: space-between; }
+.pos-contact { font-size: 10px; text-align: center; margin: 5px 0; }
+.pos-contact p { margin: 2px 0; }
 </style>
