@@ -229,8 +229,6 @@ export default {
   #print-area {
     display: block !important;
     visibility: visible !important;
-    position: absolute !important;
-    left: 0 !important; top: 0 !important;
     width: 100% !important;
     padding: 0 !important; margin: 0 !important;
     background: white !important;
@@ -241,7 +239,7 @@ export default {
 
 .repair-order-layout {
   font-family: Arial, sans-serif;
-  max-width: 800px;
+  max-width: 100%;
   margin: 0 auto;
 }
 

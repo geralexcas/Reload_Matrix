@@ -418,9 +418,6 @@ export default {
   #print-area {
     display: block !important;
     visibility: visible !important;
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
     width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
@@ -429,7 +426,7 @@ export default {
 
   /* Ensure page backgrounds are handled correctly */
   @page {
-    margin: 0;
+    margin: 1cm;
   }
   
   .pos-layout {
@@ -443,7 +440,7 @@ export default {
 .standard-layout {
   font-family: Arial, sans-serif;
   color: #000;
-  max-width: 800px;
+  max-width: 100%;
   margin: 0 auto;
   line-height: 1.4;
 }
