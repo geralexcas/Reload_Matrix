@@ -119,6 +119,25 @@
             <label>Concepto / Descripción:</label>
             <textarea v-model="txForm.description" required class="form-control" rows="3" placeholder="Ej: Anticipo para reparación #123"></textarea>
           </div>
+          <div class="form-group">
+            <label>Cuenta de Tesorería a afectar (Opcional):</label>
+            <select v-model="txForm.treasuryAccount" class="form-control">
+              <option :value="null">-- Ninguna (Solo afecta el saldo del monedero) --</option>
+              <optgroup label="Cajas">
+                <option v-for="c in cashAccounts" :key="'cash-'+c.id" :value="{type: 'CASH', id: c.id}">
+                  {{ c.name }}
+                </option>
+              </optgroup>
+              <optgroup label="Bancos">
+                <option v-for="b in bankAccounts" :key="'bank-'+b.id" :value="{type: 'BANK', id: b.id}">
+                  {{ b.bank_name }} - {{ b.account_number }}
+                </option>
+              </optgroup>
+            </select>
+            <small class="text-muted" style="font-size: 0.8rem; margin-top: 5px; display: block;">
+              Selecciona una cuenta si el dinero entra/sale realmente de caja o bancos.
+            </small>
+          </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" @click="showTransactionForm = false">Cancelar</button>
             <button type="submit" class="btn" :class="txType === 'deposit' ? 'btn-success' : 'btn-warning'" :disabled="submitting">
@@ -222,7 +241,8 @@ export default {
       },
       txForm: { 
         amount: 0, 
-        description: '' 
+        description: '',
+        treasuryAccount: null
       },
       transactions: []
     }
@@ -236,6 +256,12 @@ export default {
     },
     loading() {
       return this.$store.getters['wallet/isLoading']
+    },
+    cashAccounts() {
+      return this.$store.getters['treasury/getCashAccounts'] || [];
+    },
+    bankAccounts() {
+      return this.$store.getters['treasury/getBankAccounts'] || [];
     },
     companyId() {
       return this.$store.getters['company/getCompany']?.id || 1
@@ -267,7 +293,9 @@ export default {
     async refreshData() {
       await Promise.all([
         this.$store.dispatch('wallet/fetchWallets', { companyId: this.companyId }),
-        this.$store.dispatch('partners/fetchPartners', { companyId: this.companyId })
+        this.$store.dispatch('partners/fetchPartners', { companyId: this.companyId }),
+        this.$store.dispatch('treasury/fetchCashAccounts'),
+        this.$store.dispatch('treasury/fetchBankAccounts')
       ])
     },
     openCreateForm() {
@@ -292,13 +320,13 @@ export default {
     openDeposit(wallet) {
       this.selectedWallet = wallet
       this.txType = 'deposit'
-      this.txForm = { amount: 0, description: '' }
+      this.txForm = { amount: 0, description: '', treasuryAccount: null }
       this.showTransactionForm = true
     },
     openWithdraw(wallet) {
       this.selectedWallet = wallet
       this.txType = 'withdraw'
-      this.txForm = { amount: 0, description: '' }
+      this.txForm = { amount: 0, description: '', treasuryAccount: null }
       this.showTransactionForm = true
     },
     async submitTransaction() {
@@ -309,7 +337,9 @@ export default {
           walletId: this.selectedWallet.id,
           amount: this.txForm.amount,
           description: this.txForm.description,
-          companyId: this.companyId
+          companyId: this.companyId,
+          accountType: this.txForm.treasuryAccount ? this.txForm.treasuryAccount.type : null,
+          accountId: this.txForm.treasuryAccount ? this.txForm.treasuryAccount.id : null
         })
         this.showTransactionForm = false
         await this.refreshData()

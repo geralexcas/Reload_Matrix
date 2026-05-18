@@ -2118,6 +2118,7 @@ class AccountingService:
         total_cost: Decimal = Decimal("0.00"),
         is_paid: bool = False,
         payment_method: Optional[str] = None,
+        wallet_amount_applied: Decimal = Decimal("0.00"),
     ) -> Optional[JournalEntry]:
         """
         Create automatic journal entry from an invoice.
@@ -2218,38 +2219,70 @@ class AccountingService:
                     )
                 )
 
-        # If invoice is paid, create lines moving amount from Accounts Receivable to Cash/Bank
-        if is_paid:
+        # If invoice is paid or wallet applied, create lines moving amount from Accounts Receivable to Cash/Bank/Wallet
+        if is_paid or wallet_amount_applied > Decimal("0.00"):
             cash_account = self._get_account_by_code(company_id, "111001")
             bank_account = self._get_account_by_code(company_id, "111010")
+            wallet_account = self._get_account_by_code(company_id, "2150") # Anticipos de clientes
             
-            payment_account = accounts_receivable # Fallback
-            if payment_method == "CASH" and cash_account:
-                payment_account = cash_account
-            elif payment_method in ("BANK_TRANSFER", "CARD", "TRANSFER") and bank_account:
-                payment_account = bank_account
+            remaining_recaudo = total_amount
 
-            if payment_account and payment_account.id != accounts_receivable.id:
+            # 1. Aplicar monedero si existe
+            if wallet_amount_applied > Decimal("0.00") and wallet_account:
+                amount_to_apply = min(wallet_amount_applied, remaining_recaudo)
                 # Credit Accounts Receivable
                 self.db.add(
                     JournalEntryLine(
                         journal_entry_id=db_je.id,
                         account_id=accounts_receivable.id,
                         debit_amount=Decimal("0.00"),
-                        credit_amount=total_amount,
-                        description=f"Recaudo - Factura {reference}",
+                        credit_amount=amount_to_apply,
+                        description=f"Recaudo con monedero - Factura {reference}",
                     )
                 )
-                # Debit Cash/Bank
+                # Debit Wallet Liability
                 self.db.add(
                     JournalEntryLine(
                         journal_entry_id=db_je.id,
-                        account_id=payment_account.id,
-                        debit_amount=total_amount,
+                        account_id=wallet_account.id,
+                        debit_amount=amount_to_apply,
                         credit_amount=Decimal("0.00"),
-                        description=f"Ingreso de dinero - {payment_method}",
+                        description=f"Aplicación de anticipo - Monedero",
                     )
                 )
+                remaining_recaudo -= amount_to_apply
+
+            # 2. Aplicar el resto según payment_method
+            if remaining_recaudo > Decimal("0.00") and is_paid:
+                payment_account = accounts_receivable # Fallback
+                if payment_method == "CASH" and cash_account:
+                    payment_account = cash_account
+                elif payment_method in ("BANK_TRANSFER", "CARD", "TRANSFER") and bank_account:
+                    payment_account = bank_account
+                elif payment_method == "WALLET" and wallet_account:
+                    payment_account = wallet_account
+
+                if payment_account and payment_account.id != accounts_receivable.id:
+                    # Credit Accounts Receivable
+                    self.db.add(
+                        JournalEntryLine(
+                            journal_entry_id=db_je.id,
+                            account_id=accounts_receivable.id,
+                            debit_amount=Decimal("0.00"),
+                            credit_amount=remaining_recaudo,
+                            description=f"Recaudo - Factura {reference}",
+                        )
+                    )
+                    # Debit Cash/Bank/Wallet
+                    self.db.add(
+                        JournalEntryLine(
+                            journal_entry_id=db_je.id,
+                            account_id=payment_account.id,
+                            debit_amount=remaining_recaudo,
+                            credit_amount=Decimal("0.00"),
+                            description=f"Ingreso de dinero - {payment_method}",
+                        )
+                    )
 
         # COGS and Inventory reduction if total_cost > 0
         if total_cost > Decimal("0.00"):

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from decimal import Decimal
 
 from app.models.sql import company as company_model
@@ -88,6 +88,8 @@ def deposit_to_wallet(
     amount: Decimal,
     description: str,
     company_id: int,
+    account_type: Optional[str] = None,
+    account_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -101,7 +103,7 @@ def deposit_to_wallet(
 
     service = wallet_service.WalletService(db)
     try:
-        return service.deposit(wallet_id, amount, description, company_id)
+        return service.deposit(wallet_id, amount, description, company_id, current_user.id, account_type, account_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -116,6 +118,8 @@ def withdraw_from_wallet(
     amount: Decimal,
     description: str,
     company_id: int,
+    account_type: Optional[str] = None,
+    account_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -129,7 +133,7 @@ def withdraw_from_wallet(
 
     service = wallet_service.WalletService(db)
     try:
-        return service.withdraw(wallet_id, amount, description, company_id)
+        return service.withdraw(wallet_id, amount, description, company_id, current_user.id, account_type, account_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

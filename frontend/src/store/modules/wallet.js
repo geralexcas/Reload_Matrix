@@ -65,12 +65,17 @@ const actions = {
       commit('setLoading', false)
     }
   },
-  async deposit({ commit }, { walletId, amount, description, companyId }) {
+  async deposit({ commit }, { walletId, amount, description, companyId, accountType, accountId }) {
     commit('setLoading', true)
     commit('clearError')
     try {
+      const params = { amount, description, company_id: companyId }
+      if (accountType && accountId) {
+        params.account_type = accountType
+        params.account_id = accountId
+      }
       const res = await api.post(`/api/v1/wallet/${walletId}/deposit`, null, {
-        params: { amount, description, company_id: companyId }
+        params
       })
       return res
     } catch (err) {
@@ -80,12 +85,17 @@ const actions = {
       commit('setLoading', false)
     }
   },
-  async withdraw({ commit }, { walletId, amount, description, companyId }) {
+  async withdraw({ commit }, { walletId, amount, description, companyId, accountType, accountId }) {
     commit('setLoading', true)
     commit('clearError')
     try {
+      const params = { amount, description, company_id: companyId }
+      if (accountType && accountId) {
+        params.account_type = accountType
+        params.account_id = accountId
+      }
       const res = await api.post(`/api/v1/wallet/${walletId}/withdraw`, null, {
-        params: { amount, description, company_id: companyId }
+        params
       })
       return res
     } catch (err) {

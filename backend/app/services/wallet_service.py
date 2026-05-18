@@ -65,7 +65,7 @@ class WalletService:
         )
 
     def deposit(
-        self, wallet_id: int, amount: Decimal, description: str, company_id: int
+        self, wallet_id: int, amount: Decimal, description: str, company_id: int, user_id: Optional[int] = None, account_type: Optional[str] = None, account_id: Optional[int] = None
     ) -> WalletTransaction:
         wallet = self.get_wallet_by_id(wallet_id, company_id)
         if not wallet:
@@ -80,12 +80,92 @@ class WalletService:
             balance_after=wallet.balance,
         )
         self.db.add(tx)
+
+        # Si se especifica cuenta de tesorería, registrar el ingreso
+        if account_type and account_id:
+            from app.services.treasury_service import TreasuryService
+            from app.models.sql.accounting.journal_entry import JournalEntry
+            from app.models.sql.accounting.journal_entry_line import JournalEntryLine
+            from app.models.sql.accounting.chart_of_accounts import ChartOfAccounts
+            from datetime import datetime, timezone
+            
+            self.db.flush() # Ensure tx gets an ID
+            
+            # Obtener cuenta de Anticipos (2150)
+            wallet_account = self.db.query(ChartOfAccounts).filter(
+                ChartOfAccounts.company_id == company_id,
+                ChartOfAccounts.code == "2150"
+            ).first()
+
+            treasury_service = TreasuryService(self.db)
+            
+            # Determinar cuenta destino (Caja o Banco)
+            payment_account_id = None
+            if account_type == "BANK":
+                bank = treasury_service.get_bank_account_by_id(account_id, company_id)
+                if bank:
+                    payment_account_id = bank.linked_account_id
+            elif account_type == "CASH":
+                cash = treasury_service.get_cash_account_by_id(account_id, company_id)
+                if cash:
+                    payment_account_id = cash.linked_account_id
+
+            # Crear Asiento Contable
+            je = None
+            if wallet_account and payment_account_id:
+                je = JournalEntry(
+                    entry_date=datetime.now(timezone.utc),
+                    description=description or f"Ingreso a monedero",
+                    reference=f"WAL-{wallet_id}-{tx.id}",
+                    company_id=company_id,
+                    is_posted=True,
+                )
+                self.db.add(je)
+                self.db.flush()
+
+                # Débito a Caja/Banco
+                self.db.add(
+                    JournalEntryLine(
+                        journal_entry_id=je.id,
+                        account_id=payment_account_id,
+                        debit_amount=amount,
+                        credit_amount=Decimal("0.00"),
+                        description=f"Ingreso de dinero - Monedero",
+                    )
+                )
+                # Crédito a Anticipos (Pasivo)
+                self.db.add(
+                    JournalEntryLine(
+                        journal_entry_id=je.id,
+                        account_id=wallet_account.id,
+                        debit_amount=Decimal("0.00"),
+                        credit_amount=amount,
+                        description=f"Anticipo de cliente",
+                    )
+                )
+                self.db.flush()
+
+            # Registrar transacción en tesorería saltando su propio asiento
+            t_tx = treasury_service.deposit(
+                account_type=account_type,
+                account_id=account_id,
+                amount=amount,
+                description=description or f"Ingreso a monedero",
+                reference=f"WAL-{wallet_id}-{tx.id}",
+                company_id=company_id,
+                user_id=user_id,
+                skip_journal_entry=True
+            )
+            
+            if je and t_tx:
+                t_tx.journal_entry_id = je.id
+
         self.db.commit()
         self.db.refresh(wallet)
         return tx
 
     def withdraw(
-        self, wallet_id: int, amount: Decimal, description: str, company_id: int
+        self, wallet_id: int, amount: Decimal, description: str, company_id: int, user_id: Optional[int] = None, account_type: Optional[str] = None, account_id: Optional[int] = None
     ) -> WalletTransaction:
         wallet = self.get_wallet_by_id(wallet_id, company_id)
         if not wallet:
@@ -103,6 +183,86 @@ class WalletService:
             balance_after=wallet.balance,
         )
         self.db.add(tx)
+
+        # Si se especifica cuenta de tesorería, registrar la salida de dinero
+        if account_type and account_id:
+            from app.services.treasury_service import TreasuryService
+            from app.models.sql.accounting.journal_entry import JournalEntry
+            from app.models.sql.accounting.journal_entry_line import JournalEntryLine
+            from app.models.sql.accounting.chart_of_accounts import ChartOfAccounts
+            from datetime import datetime, timezone
+            
+            self.db.flush() # Ensure tx gets an ID
+            
+            # Obtener cuenta de Anticipos (2150)
+            wallet_account = self.db.query(ChartOfAccounts).filter(
+                ChartOfAccounts.company_id == company_id,
+                ChartOfAccounts.code == "2150"
+            ).first()
+
+            treasury_service = TreasuryService(self.db)
+            
+            # Determinar cuenta origen (Caja o Banco)
+            payment_account_id = None
+            if account_type == "BANK":
+                bank = treasury_service.get_bank_account_by_id(account_id, company_id)
+                if bank:
+                    payment_account_id = bank.linked_account_id
+            elif account_type == "CASH":
+                cash = treasury_service.get_cash_account_by_id(account_id, company_id)
+                if cash:
+                    payment_account_id = cash.linked_account_id
+
+            # Crear Asiento Contable
+            je = None
+            if wallet_account and payment_account_id:
+                je = JournalEntry(
+                    entry_date=datetime.now(timezone.utc),
+                    description=description or f"Retiro de monedero",
+                    reference=f"WAL-{wallet_id}-{tx.id}",
+                    company_id=company_id,
+                    is_posted=True,
+                )
+                self.db.add(je)
+                self.db.flush()
+
+                # Débito a Anticipos (Disminuye el pasivo)
+                self.db.add(
+                    JournalEntryLine(
+                        journal_entry_id=je.id,
+                        account_id=wallet_account.id,
+                        debit_amount=amount,
+                        credit_amount=Decimal("0.00"),
+                        description=f"Retiro de anticipo - Monedero",
+                    )
+                )
+                # Crédito a Caja/Banco (Disminuye el activo)
+                self.db.add(
+                    JournalEntryLine(
+                        journal_entry_id=je.id,
+                        account_id=payment_account_id,
+                        debit_amount=Decimal("0.00"),
+                        credit_amount=amount,
+                        description=f"Salida de dinero",
+                    )
+                )
+                self.db.flush()
+
+            # Registrar transacción en tesorería saltando su propio asiento
+            t_tx = treasury_service.withdraw(
+                account_type=account_type,
+                account_id=account_id,
+                amount=amount,
+                description=description or f"Retiro de monedero",
+                reference=f"WAL-{wallet_id}-{tx.id}",
+                company_id=company_id,
+                user_id=user_id,
+                skip_journal_entry=True
+            )
+            
+            if je and t_tx:
+                t_tx.journal_entry_id = je.id
+
         self.db.commit()
         self.db.refresh(wallet)
         return tx

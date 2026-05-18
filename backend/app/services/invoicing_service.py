@@ -83,7 +83,7 @@ class InvoicingService:
         }
 
     def _create_automatic_journal_entry(
-        self, db_invoice: Invoice, company_id: int, is_paid: bool = False, payment_method: Optional[str] = None
+        self, db_invoice: Invoice, company_id: int, is_paid: bool = False, payment_method: Optional[str] = None, wallet_amount_applied: Decimal = Decimal("0.00")
     ):
         """
         Create automatic journal entry when invoice is created.
@@ -134,6 +134,7 @@ class InvoicingService:
             total_cost=total_cost,
             is_paid=is_paid,
             payment_method=payment_method,
+            wallet_amount_applied=wallet_amount_applied,
         )
 
     def create_invoice(
@@ -257,7 +258,8 @@ class InvoicingService:
             db_invoice, 
             company_id, 
             is_paid=invoice_with_items.is_paid, 
-            payment_method=invoice_with_items.payment_method
+            payment_method=invoice_with_items.payment_method,
+            wallet_amount_applied=invoice_with_items.wallet_amount_applied
         )
         self.db.commit()
         self.db.refresh(db_invoice)
