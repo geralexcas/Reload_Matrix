@@ -48,7 +48,7 @@
         placeholder="Ej: 7798123456789"
         @input="cleanBarcode"
       />
-      <small class="form-text">Solo números. Dejar vacío si no aplica.</small>
+      <small class="form-text">Letras y números. Dejar vacío si no aplica.</small>
     </div>
     
     <div class="form-group">
@@ -401,9 +401,9 @@ export default {
       }
     },
     cleanBarcode() {
-      // Remove any non-digit characters
+      // Remove any non-alphanumeric characters
       if (this.form.barcode) {
-        this.form.barcode = this.form.barcode.replace(/\D/g, '')
+        this.form.barcode = this.form.barcode.replace(/[^a-zA-Z0-9-]/g, '')
       }
     },
     updateStockFromSerials() {

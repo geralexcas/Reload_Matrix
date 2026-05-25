@@ -708,6 +708,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter))
             .order_by(Invoice.issue_date, Invoice.invoice_number)
+            .unique()
             .all()
         )
 
@@ -833,6 +834,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter))
             .order_by(Invoice.issue_date, Invoice.invoice_number)
+            .unique()
             .all()
         )
 
@@ -849,6 +851,7 @@ class AccountingService:
             .options(joinedload(Purchase.partner), joinedload(Purchase.items))
             .filter(and_(*p_date_filter))
             .order_by(Purchase.purchase_date, Purchase.purchase_number)
+            .unique()
             .all()
         )
 
@@ -867,6 +870,7 @@ class AccountingService:
             .options(joinedload(JournalEntry.lines))
             .filter(and_(*je_date_filter))
             .order_by(JournalEntry.entry_date, JournalEntry.reference)
+            .unique()
             .all()
         )
 
@@ -1143,6 +1147,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter_sales))
             .order_by(Invoice.issue_date)
+            .unique()
             .all()
         )
 
@@ -1151,6 +1156,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter_purchases))
             .order_by(Invoice.issue_date)
+            .unique()
             .all()
         )
 
@@ -1321,6 +1327,7 @@ class AccountingService:
             self.db.query(Invoice)
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*inv_filter))
+            .unique()
             .all()
         )
 
@@ -1335,6 +1342,7 @@ class AccountingService:
             self.db.query(Purchase)
             .options(joinedload(Purchase.partner), joinedload(Purchase.items))
             .filter(and_(*pur_filter))
+            .unique()
             .all()
         )
 
@@ -1393,6 +1401,7 @@ class AccountingService:
             self.db.query(JournalEntry)
             .options(joinedload(JournalEntry.lines).joinedload(JournalEntryLine.account))
             .filter(and_(*je_filter))
+            .unique()
             .all()
         )
 
@@ -1470,6 +1479,7 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter))
             .order_by(Invoice.issue_date)
+            .unique()
             .all()
         )
 
