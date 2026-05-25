@@ -707,10 +707,9 @@ class AccountingService:
             self.db.query(Invoice)
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter))
-            .order_by(Invoice.issue_date, Invoice.invoice_number)
-            .unique()
             .all()
         )
+        invoices = list({inv.id: inv for inv in invoices}.values())
 
         entries = []
         total_base_iva_19 = Decimal("0.00")
@@ -833,10 +832,9 @@ class AccountingService:
             self.db.query(Invoice)
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter))
-            .order_by(Invoice.issue_date, Invoice.invoice_number)
-            .unique()
             .all()
         )
+        invoices = list({inv.id: inv for inv in invoices}.values())
 
         p_date_filter = [
             Purchase.company_id == company_id,
@@ -850,10 +848,9 @@ class AccountingService:
             self.db.query(Purchase)
             .options(joinedload(Purchase.partner), joinedload(Purchase.items))
             .filter(and_(*p_date_filter))
-            .order_by(Purchase.purchase_date, Purchase.purchase_number)
-            .unique()
             .all()
         )
+        dedicated_purchases = list({pur.id: pur for pur in dedicated_purchases}.values())
 
         je_date_filter = [
             JournalEntry.company_id == company_id,
@@ -869,10 +866,9 @@ class AccountingService:
             self.db.query(JournalEntry)
             .options(joinedload(JournalEntry.lines))
             .filter(and_(*je_date_filter))
-            .order_by(JournalEntry.entry_date, JournalEntry.reference)
-            .unique()
             .all()
         )
+        initial_stock_jes = list({je.id: je for je in initial_stock_jes}.values())
 
         all_purchases = invoices + dedicated_purchases
         entries = []
@@ -1147,18 +1143,18 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter_sales))
             .order_by(Invoice.issue_date)
-            .unique()
             .all()
         )
+        sales_invoices = list({inv.id: inv for inv in sales_invoices}.values())
 
         purchase_invoices = (
             self.db.query(Invoice)
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter_purchases))
             .order_by(Invoice.issue_date)
-            .unique()
             .all()
         )
+        purchase_invoices = list({inv.id: inv for inv in purchase_invoices}.values())
 
         entries = []
         total_retefuente = Decimal("0.00")
@@ -1326,10 +1322,9 @@ class AccountingService:
         invoices = (
             self.db.query(Invoice)
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
-            .filter(and_(*inv_filter))
-            .unique()
             .all()
         )
+        invoices = list({inv.id: inv for inv in invoices}.values())
 
         # 2. Obtener compras desde el modelo Purchase
         pur_filter = [Purchase.company_id == company_id]
@@ -1341,10 +1336,9 @@ class AccountingService:
         purchases = (
             self.db.query(Purchase)
             .options(joinedload(Purchase.partner), joinedload(Purchase.items))
-            .filter(and_(*pur_filter))
-            .unique()
             .all()
         )
+        purchases = list({pur.id: pur for pur in purchases}.values())
 
         entries = []
         total_compras = Decimal("0.00")
@@ -1400,10 +1394,9 @@ class AccountingService:
         journal_entries = (
             self.db.query(JournalEntry)
             .options(joinedload(JournalEntry.lines).joinedload(JournalEntryLine.account))
-            .filter(and_(*je_filter))
-            .unique()
             .all()
         )
+        journal_entries = list({je.id: je for je in journal_entries}.values())
 
         # Procesar Asientos Contables (solo las líneas de gasto)
         for je in journal_entries:
@@ -1479,9 +1472,9 @@ class AccountingService:
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
             .filter(and_(*date_filter))
             .order_by(Invoice.issue_date)
-            .unique()
             .all()
         )
+        invoices = list({inv.id: inv for inv in invoices}.values())
 
         entries = []
         total_operacional = Decimal("0.00")
