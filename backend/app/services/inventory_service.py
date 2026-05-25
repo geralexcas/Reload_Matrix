@@ -111,7 +111,8 @@ class InventoryService:
                                 amount=total_amount,
                                 description=f"Pago stock inicial - {db_product.name}",
                                 reference=f"PUR-{db_purchase.id:06d}",
-                                company_id=company_id
+                                company_id=company_id,
+                                skip_journal_entry=True
                             )
                 else:
                     # Legacy: No supplier provided, but payment method is NOT credit. 
@@ -137,7 +138,8 @@ class InventoryService:
                                 amount=total_amount,
                                 description=f"Stock inicial - {db_product.name}",
                                 reference=f"SI-{db_product.id:06d}",
-                                company_id=company_id
+                                company_id=company_id,
+                                skip_journal_entry=True
                             )
 
             except ValueError as ve:
