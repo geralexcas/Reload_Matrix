@@ -1,8 +1,8 @@
-import os
 import sys
+sys.path.insert(0, "/app")
 
 from app.core.database import SessionLocal
-from app.models.sql.accounting import JournalEntry
+from app.models.sql.accounting.journal_entry import JournalEntry
 
 def main():
     db = SessionLocal()
