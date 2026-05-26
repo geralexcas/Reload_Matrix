@@ -18,6 +18,7 @@
 
     <div v-if="!loading" class="form-card">
       <ProductForm 
+        ref="productForm"
         :product="productToEdit"
         @save="handleSaveProduct"
         @cancel="goBack"
@@ -97,6 +98,9 @@ export default {
         })
         .catch(err => {
           this.$toast?.error(err.response?.data?.detail || 'Error al actualizar producto')
+          if (this.$refs.productForm) {
+            this.$refs.productForm.isLoading = false
+          }
         })
       } else if (productData.is_bulk) {
         // Bulk Create
@@ -111,6 +115,9 @@ export default {
         })
         .catch(err => {
           this.$toast?.error(err.response?.data?.detail || 'Error al crear productos en masa')
+          if (this.$refs.productForm) {
+            this.$refs.productForm.isLoading = false
+          }
         })
       } else {
         // Create new
@@ -124,6 +131,9 @@ export default {
         })
         .catch(err => {
           this.$toast?.error(err.response?.data?.detail || 'Error al crear producto')
+          if (this.$refs.productForm) {
+            this.$refs.productForm.isLoading = false
+          }
         })
       }
     }

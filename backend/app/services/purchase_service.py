@@ -38,11 +38,8 @@ class PurchaseService:
         discount_amount = subtotal * (discount_percent / 100)
         subtotal_after_discount = subtotal - discount_amount
 
-        if company_regimen == "SIMPLE":
-            tax_amount = Decimal("0.00")
-        else:
-            tax_rate = Decimal(str(item.tax_rate))
-            tax_amount = subtotal_after_discount * (tax_rate / 100)
+        tax_rate = Decimal(str(item.tax_rate))
+        tax_amount = subtotal_after_discount * (tax_rate / 100)
 
         line_total = subtotal_after_discount + tax_amount
 

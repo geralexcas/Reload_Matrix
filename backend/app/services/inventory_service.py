@@ -13,7 +13,7 @@ class InventoryService:
         self.db = db
 
     def create_product(
-        self, product: inv_schema.ProductCreate, company_id: int
+        self, product: inv_schema.ProductCreate, company_id: int, commit: bool = True
     ) -> Product:
         # Validate barcode uniqueness if provided
         if product.barcode:
@@ -33,11 +33,10 @@ class InventoryService:
         db_product = Product(**product.model_dump(exclude={'skip_initial_stock_purchase'}), company_id=company_id)
         self.db.add(db_product)
         try:
-            self.db.commit()
+            self.db.flush()
         except IntegrityError:
             self.db.rollback()
             raise ValueError("El SKU o código de barras ya existe.")
-        self.db.refresh(db_product)
 
         # Create accounting entry or purchase if initial stock is provided
         # skip_initial_stock_purchase allows avoiding double purchase records when creating products during a purchase flow
@@ -143,6 +142,7 @@ class InventoryService:
                             )
 
             except ValueError as ve:
+                self.db.rollback()
                 if str(ve) == "Insufficient balance":
                     raise ValueError(
                         f"No hay saldo suficiente en tesorería para pagar el stock inicial en {payment_method_str}. "
@@ -150,9 +150,14 @@ class InventoryService:
                     )
                 raise ve
             except Exception as e:
+                self.db.rollback()
                 import logging
                 logging.error(f"Error creating accounting/treasury entry: {e}")
+                raise e
 
+        if commit:
+            self.db.commit()
+            self.db.refresh(db_product)
         return db_product
 
     def bulk_create_products(
@@ -183,12 +188,16 @@ class InventoryService:
             item_data.skip_initial_stock_purchase = getattr(bulk_data, 'skip_initial_stock_purchase', False)
             
             try:
-                db_product = self.create_product(item_data, company_id)
+                db_product = self.create_product(item_data, company_id, commit=False)
                 created_products.append(db_product)
             except ValueError as e:
-                # If one fails (e.g. duplicate barcode/SKU), we raise
+                # If one fails (e.g. duplicate barcode/SKU), we rollback EVERYTHING
+                self.db.rollback()
                 raise e
                 
+        self.db.commit()
+        for p in created_products:
+            self.db.refresh(p)
         return created_products
 
     def get_products(
