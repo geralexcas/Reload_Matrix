@@ -26,7 +26,7 @@ def upgrade() -> None:
         "WHERE table_name='invoice_items' AND column_name='serial_number'"
     ))
     if not res.first():
-        op.add_column('invoice_items', sa.Column('serial_number', sa.String(length=100), nullable=True))
+            op.add_column('invoice_items', sa.Column('serial_number', sa.String(length=255), nullable=True))
 
 
 def downgrade() -> None:

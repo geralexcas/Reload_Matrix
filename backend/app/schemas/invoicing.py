@@ -83,6 +83,8 @@ class InvoiceItemBase(BaseModel):
     product_id: Optional[int] = None
     # Agrupador para componentes de un equipo ensamblado (PC Armado)
     assembly_group_id: Optional[str] = Field(None, max_length=50)
+    # Número de serie del producto
+    serial_number: Optional[str] = Field(None, max_length=255)
 
     @field_validator(
         "quantity", "unit_price", "discount", "tax_rate", "tax_amount", "line_total"

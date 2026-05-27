@@ -81,6 +81,8 @@ class InvoiceItem(Base):
     product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
     # Agrupador para componentes de un equipo ensamblado (PC Armado)
     assembly_group_id = Column(String(50), nullable=True)
+    # Número de serie del producto (copiado del barcode del producto serializado)
+    serial_number = Column(String(255), nullable=True)
 
     # Relationships
     invoice = relationship("Invoice", back_populates="items")

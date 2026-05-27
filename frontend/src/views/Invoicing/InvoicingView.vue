@@ -563,14 +563,15 @@ export default {
       const product = this.newItem.product_id ? this.products.find(p => p.id === this.newItem.product_id) : null;
       const unitPrice = product ? (product.sale_price || product.price || 0) : (this.newItem.unit_price || 0);
       
-      this.form.items.push({
-        product_id: this.newItem.product_id || null,
-        description: this.newItem.description || (product ? product.name : ''),
-        quantity: this.newItem.quantity || 1,
-        unit_price: unitPrice,
-        discount: this.newItem.discount || 0,
-        tax_rate: this.newItem.apply_tax ? 19 : 0
-      })
+        this.form.items.push({
+          product_id: this.newItem.product_id || null,
+          description: this.newItem.description || (product ? product.name : ''),
+          quantity: this.newItem.quantity || 1,
+          unit_price: unitPrice,
+          discount: this.newItem.discount || 0,
+          tax_rate: this.newItem.apply_tax ? 19 : 0,
+          serial_number: this.newItem.serial_number || null
+        })
 
       // Reset new item
       this.newItem = {
@@ -660,17 +661,18 @@ export default {
             }
             const sub = this.getItemSubtotal(item)
             const tax_amt = sub * ((item.tax_rate || 0) / 100)
-            return {
-              description: desc,
-              product_id: item.product_id ? parseInt(item.product_id) : null,
-              quantity: item.quantity,
-              unit_price: item.unit_price,
-              discount: item.discount,
-              tax_rate: item.tax_rate || 0,
-              tax_amount: tax_amt,
-              line_total: sub + tax_amt,
-              assembly_group_id: item.assembly_group_id || null
-            }
+        return {
+          description: desc,
+          product_id: item.product_id ? parseInt(item.product_id) : null,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          discount: item.discount,
+          tax_rate: item.tax_rate || 0,
+          tax_amount: tax_amt,
+          line_total: sub + tax_amt,
+          assembly_group_id: item.assembly_group_id || null,
+          serial_number: item.serial_number || null
+        }
           })
         }
         await api.post('/api/v1/invoicing/with-items/', payload, {

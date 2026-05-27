@@ -226,6 +226,7 @@ class InvoicingService:
                 tax_amount=item.tax_amount,
                 line_total=item.line_total,
                 product_id=item.product_id,
+                serial_number=item.serial_number,
             )
             self.db.add(db_item)
 
@@ -372,18 +373,19 @@ class InvoicingService:
                 line_sub = (item.quantity * item.unit_price) - item.discount
                 subtotal += line_sub
                 vat_amount += item.tax_amount
-                items_list.append({
-                    "id": item.id,
-                    "invoice_id": item.invoice_id,
-                    "description": item.description,
-                    "quantity": item.quantity,
-                    "unit_price": item.unit_price,
-                    "discount": item.discount,
-                    "tax_rate": item.tax_rate,
-                    "tax_amount": item.tax_amount,
-                    "line_total": item.line_total,
-                    "product_id": item.product_id,
-                })
+            items_list.append({
+                "id": item.id,
+                "invoice_id": item.invoice_id,
+                "description": item.description,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "discount": item.discount,
+                "tax_rate": item.tax_rate,
+                "tax_amount": item.tax_amount,
+                "line_total": item.line_total,
+                "product_id": item.product_id,
+                "serial_number": item.serial_number,
+            })
         data["subtotal"] = subtotal if subtotal else invoice.total_amount
         data["vat_amount"] = vat_amount
         data["items"] = items_list
