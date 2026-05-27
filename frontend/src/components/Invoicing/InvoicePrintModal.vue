@@ -207,6 +207,9 @@
             </div>
             <div v-else class="pos-item">
               <div>{{ item.description }}</div>
+              <div v-if="item.serial_number" style="font-size: 10px; color: #555;">
+                Serie: {{ item.serial_number }}
+              </div>
               <div class="pos-item-data">
                 {{ item.quantity }} x {{ formatNumber(item.unit_price) }} = {{ formatNumber(item.line_total) }}
               </div>

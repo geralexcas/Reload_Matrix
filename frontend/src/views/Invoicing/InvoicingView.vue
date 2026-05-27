@@ -539,6 +539,11 @@ export default {
       const product = this.products.find(p => p.id === this.newItem.product_id)
       if (product) {
         this.newItem.description = ''
+        // Auto-rellenar el número de serie con el barcode del producto.
+        // En inventario, productos serializados usan el barcode como su número de serie único.
+        this.newItem.serial_number = product.barcode || ''
+      } else {
+        this.newItem.serial_number = ''
       }
     },
     getProductName(productId) {
