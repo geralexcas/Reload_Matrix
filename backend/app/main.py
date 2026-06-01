@@ -60,7 +60,14 @@ app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboar
 # Serve uploaded files
 import os
 
-os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+try:
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+except PermissionError:
+    logger.error(
+        f"Cannot create upload directory '{settings.UPLOAD_DIR}'. "
+        f"Ensure the directory exists and is writable by the application user. "
+        f"Run: sudo chown -R <uid>:<gid> ./uploads && sudo chmod -R 775 ./uploads"
+    )
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 # Task Scheduler for Automated Backups

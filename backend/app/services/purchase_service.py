@@ -729,51 +729,52 @@ class PurchaseService:
 
     def extract_from_pdf(self, file_content: bytes, company_id: int) -> dict:
         """Extract partner and items from a purchase invoice PDF using Gemini"""
-        # 1. Extract text using PyMuPDF
+        # 1. Extract text using PyMuPDF (solo para PDFs nativos, no escaneados)
         doc = fitz.open(stream=file_content, filetype="pdf")
         text = ""
         for page in doc:
             text += page.get_text()
         doc.close()
 
-        if not text.strip():
-            raise ValueError("No se pudo extraer texto del PDF o está vacío.")
+        is_scanned = not text.strip()
 
         # 2. Call Gemini API
         if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "tu_clave_de_gemini_aqui":
             raise ValueError("GEMINI_API_KEY no es válida. Obtén una clave real en Google AI Studio.")
-            
+
         client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        
+
+        if is_scanned:
+            text_context = "Este es un PDF escaneado (imagen), no tiene texto embebido. Lee el contenido directamente de la imagen del documento."
+        else:
+            text_context = f"Texto extraído como respaldo:\n{text}"
+
         prompt = f"""
-        A continuación tienes una factura de compra (archivo PDF) y el texto bruto extraído de la misma.
-        Tu tarea es extraer la información del proveedor y los productos comprados.
-        IMPORTANTE: Para la descripción del producto, extrae EXACTAMENTE el texto original que ves en la factura, no resumas ni recortes la descripción. Si incluye referencias como DDR4 4GB 3200MHZ, inclúyelas tal cual.
-        
-        Responde ÚNICAMENTE con un objeto JSON con la siguiente estructura (sin formato Markdown, sin texto adicional):
-        {{
-            "purchase_number": "Número de la factura (solo el número o código, ej: ATPE 24468)",
-            "partner_data": {{
-                "nit": "Número de NIT o documento (solo números o guiones)",
-                "name": "Nombre completo del proveedor",
-                "email": "Email del proveedor si existe, o null",
-                "phone": "Teléfono si existe, o null",
-                "address": "Dirección si existe, o null"
-            }},
-            "items": [
-                {{
-                    "description": "Copia EXACTA del nombre y características del producto (sin resumir)",
-                    "quantity": cantidad en número,
-                    "unit_price": precio unitario en número sin símbolos,
-                    "tax_rate": porcentaje de IVA (ej. 19) o 0,
-                    "serial_number": "El número de serie del producto (suele empezar por SN:, SN::, o S/N). Debes extraerlo sí o sí si aparece bajo la descripción. Ej: BWA43100001578. Si no hay, null"
-                }}
-            ]
-        }}
-        
-        Texto extraído como respaldo:
-        {text}
-        """
+A continuación tienes una factura de compra (archivo PDF). {text_context}
+Tu tarea es extraer la información del proveedor y los productos comprados.
+IMPORTANTE: Para la descripción del producto, extrae EXACTAMENTE el texto original que ves en la factura, no resumas ni recortes la descripción. Si incluye referencias como DDR4 4GB 3200MHZ, inclúyelas tal cual.
+
+Responde ÚNICAMENTE con un objeto JSON con la siguiente estructura (sin formato Markdown, sin texto adicional):
+{{
+  "purchase_number": "Número de la factura (solo el número o código, ej: ATPE 24468)",
+  "partner_data": {{
+    "nit": "Número de NIT o documento (solo números o guiones)",
+    "name": "Nombre completo del proveedor",
+    "email": "Email del proveedor si existe, o null",
+    "phone": "Teléfono si existe, o null",
+    "address": "Dirección si existe, o null"
+  }},
+  "items": [
+    {{
+      "description": "Copia EXACTA del nombre y características del producto (sin resumir)",
+      "quantity": cantidad en número,
+      "unit_price": precio unitario en número sin símbolos,
+      "tax_rate": porcentaje de IVA (ej. 19) o 0,
+      "serial_number": "El número de serie del producto (suele empezar por SN:, SN::, o S/N). Debes extraerlo sí o sí si aparece bajo la descripción. Ej: BWA43100001578. Si no hay, null"
+    }}
+  ]
+}}
+"""
         
         try:
             response = client.models.generate_content(

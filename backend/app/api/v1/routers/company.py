@@ -1,8 +1,11 @@
+import logging
 import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List
+
+logger = logging.getLogger("app")
 
 from app.models.sql import company as company_model
 from app.models.sql import user as user_model
@@ -108,7 +111,17 @@ def upload_company_logo(
     ext = os.path.splitext(file.filename)[1] if file.filename else ".jpg"
     filename = f"{uuid.uuid4()}{ext}"
     logo_dir = os.path.join(settings.UPLOAD_DIR, "logos")
-    os.makedirs(logo_dir, exist_ok=True)
+    try:
+        os.makedirs(logo_dir, exist_ok=True)
+    except PermissionError:
+        logger.error(
+            f"Permission denied creating logo directory '{logo_dir}'. "
+            f"Ensure the directory exists and is writable by the application user."
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Server cannot save uploaded files. Contact the administrator to fix upload directory permissions.",
+        )
     filepath = os.path.join(logo_dir, filename)
 
     with open(filepath, "wb") as f:
