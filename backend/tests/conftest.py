@@ -87,6 +87,14 @@ def test_user(db_session, test_company):
 
 
 @pytest.fixture
+def chart_of_accounts(db_session, test_company):
+    from app.services.accounting_service import AccountingService
+    service = AccountingService(db_session)
+    service.create_default_chart_of_accounts(test_company.id)
+    db_session.commit()
+
+
+@pytest.fixture
 def auth_headers(client, test_user):
     response = client.post(
         "/api/v1/auth/token",

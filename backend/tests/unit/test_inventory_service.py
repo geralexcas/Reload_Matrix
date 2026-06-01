@@ -5,7 +5,7 @@ from app.schemas.inventory import ProductCreate
 
 
 class TestInventoryService:
-    def test_create_product(self, db_session, test_company):
+    def test_create_product(self, db_session, test_company, chart_of_accounts):
         service = InventoryService(db_session)
         product_data = ProductCreate(
             sku="TEST-001",
@@ -24,7 +24,7 @@ class TestInventoryService:
         assert product.name == "Test Product"
         assert product.stock_level == Decimal("100.00")
 
-    def test_deduct_stock_success(self, db_session, test_company):
+    def test_deduct_stock_success(self, db_session, test_company, chart_of_accounts):
         from decimal import Decimal
 
         service = InventoryService(db_session)
@@ -43,7 +43,7 @@ class TestInventoryService:
         result = service.deduct_stock(product.id, 10.0, test_company.id)
         assert result.stock_level == Decimal("40.00")
 
-    def test_deduct_stock_insufficient(self, db_session, test_company):
+    def test_deduct_stock_insufficient(self, db_session, test_company, chart_of_accounts):
         from decimal import Decimal
 
         service = InventoryService(db_session)
@@ -62,7 +62,7 @@ class TestInventoryService:
         with pytest.raises(ValueError, match="Insufficient stock"):
             service.deduct_stock(product.id, 10.0, test_company.id)
 
-    def test_check_stock_availability(self, db_session, test_company):
+    def test_check_stock_availability(self, db_session, test_company, chart_of_accounts):
         from decimal import Decimal
 
         service = InventoryService(db_session)
@@ -85,7 +85,7 @@ class TestInventoryService:
             service.check_stock_availability(product.id, 25.0, test_company.id) is False
         )
 
-    def test_adjust_stock_positive(self, db_session, test_company):
+    def test_adjust_stock_positive(self, db_session, test_company, chart_of_accounts):
         from decimal import Decimal
 
         service = InventoryService(db_session)
@@ -104,7 +104,7 @@ class TestInventoryService:
         result = service.adjust_stock_level(product.id, 25, test_company.id)
         assert result.stock_level == Decimal("75.00")
 
-    def test_adjust_stock_negative(self, db_session, test_company):
+    def test_adjust_stock_negative(self, db_session, test_company, chart_of_accounts):
         from decimal import Decimal
 
         service = InventoryService(db_session)

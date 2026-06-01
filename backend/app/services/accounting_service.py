@@ -430,7 +430,7 @@ class AccountingService:
             debits = sum([l.debit_amount for l in lines]) if lines else Decimal("0.00")
             credits = sum([l.credit_amount for l in lines]) if lines else Decimal("0.00")
 
-            if account.account_type in ("ASSET", "EXPENSE"):
+            if account.account_type in ("ASSET", "EXPENSE", "COST"):
                 net_balance = debits - credits
             else:
                 net_balance = credits - debits
@@ -561,7 +561,7 @@ class AccountingService:
                     .all()
                 )
                 for jel, je in initial_lines:
-                    if account.account_type in ("ASSET", "EXPENSE"):
+                    if account.account_type in ("ASSET", "EXPENSE", "COST"):
                         saldo_inicial += jel.debit_amount - jel.credit_amount
                     else:
                         saldo_inicial += jel.credit_amount - jel.debit_amount
@@ -575,7 +575,7 @@ class AccountingService:
                 total_debits += jel.debit_amount
                 total_credits += jel.credit_amount
 
-                if account.account_type in ("ASSET", "EXPENSE"):
+                if account.account_type in ("ASSET", "EXPENSE", "COST"):
                     running_balance += jel.debit_amount - jel.credit_amount
                 else:
                     running_balance += jel.credit_amount - jel.debit_amount
@@ -591,7 +591,7 @@ class AccountingService:
                     }
                 )
 
-            if account.account_type in ("ASSET", "EXPENSE"):
+            if account.account_type in ("ASSET", "EXPENSE", "COST"):
                 saldo_final = saldo_inicial + total_debits - total_credits
             else:
                 saldo_final = saldo_inicial + total_credits - total_debits
@@ -1846,14 +1846,21 @@ class AccountingService:
                 "account_type": "LIABILITY",
                 "parent_id": None,
             },
-            {
-                "code": "2220",
-                "name": "Bonos y obligaciones",
-                "description": "Títulos de deuda",
-                "account_type": "LIABILITY",
-                "parent_id": None,
-            },
-            # Equity
+        {
+            "code": "2220",
+            "name": "Bonos y obligaciones",
+            "description": "Títulos de deuda",
+            "account_type": "LIABILITY",
+            "parent_id": None,
+        },
+        {
+            "code": "2408",
+            "name": "IVA descontable (soportado)",
+            "description": "Impuesto sobre las ventas descontable en compras",
+            "account_type": "LIABILITY",
+            "parent_id": None,
+        },
+        # Equity
             {
                 "code": "3000",
                 "name": "PATRIMONIO",
@@ -1916,13 +1923,13 @@ class AccountingService:
                 "description": "Total de gastos",
                 "account_type": "EXPENSE",
             },
-            {
-                "code": "5100",
-                "name": "Costo de ventas",
-                "description": "Costo directo de productos vendidos",
-                "account_type": "EXPENSE",
-                "parent_id": None,
-            },
+        {
+            "code": "5100",
+            "name": "Costo de ventas",
+            "description": "Costo directo de productos vendidos",
+            "account_type": "COST",
+            "parent_id": None,
+        },
             {
                 "code": "5200",
                 "name": "Gastos de administración",
@@ -1951,30 +1958,50 @@ class AccountingService:
                 "account_type": "EXPENSE",
                 "parent_id": None,
             },
-            {
-                "code": "5600",
-                "name": "Otros gastos",
-                "description": "Gastos diversos",
-                "account_type": "EXPENSE",
-                "parent_id": None,
-            },
+        {
+            "code": "5600",
+            "name": "Otros gastos",
+            "description": "Gastos diversos",
+            "account_type": "EXPENSE",
+            "parent_id": None,
+        },
+        {
+            "code": "6135",
+            "name": "Costo de ventas",
+            "description": "Costo directo de mercancías vendidas (PUC 6135)",
+            "account_type": "COST",
+            "parent_id": None,
+        },
         ]
 
         created_accounts = []
-        account_map = {}  # To store created accounts by code for setting parent relationships
+        account_map = {}
 
-        # First pass: create all accounts without parent relationships
+        existing_accounts = {
+            acc.code: acc
+            for acc in self.db.query(ChartOfAccounts)
+            .filter(ChartOfAccounts.company_id == company_id)
+            .all()
+        }
+
         for acc_data in default_accounts:
-            # Remove parent_id from data for creation (we'll set it after)
             parent_id = acc_data.pop("parent_id", None)
+
+            if acc_data["code"] in existing_accounts:
+                existing = existing_accounts[acc_data["code"]]
+                account_map[acc_data["code"]] = existing.id
+                created_accounts.append(existing)
+                if parent_id is not None:
+                    acc_data["parent_id"] = parent_id
+                continue
+
             coa_create = co_schema.ChartOfAccountsCreate(**acc_data)
             db_coa = ChartOfAccounts(**coa_create.model_dump(), company_id=company_id)
             self.db.add(db_coa)
-            self.db.flush()  # Get ID without committing
+            self.db.flush()
             account_map[acc_data["code"]] = db_coa.id
             created_accounts.append(db_coa)
 
-            # Put back parent_id for later use
             if parent_id is not None:
                 acc_data["parent_id"] = parent_id
 
@@ -1983,15 +2010,24 @@ class AccountingService:
             parent_id = acc_data.get("parent_id")
             if parent_id is not None:
                 child_code = acc_data["code"]
-                # Find the child account in created_accounts
                 for coa in created_accounts:
                     if coa.code == child_code:
                         coa.parent_id = account_map.get(str(parent_id))
                         break
 
+        # Deactivate IVA soportado (2408) for SIMPLE/NO_RESPONSABLE regimes
+        company = (
+            self.db.query(company_model.Company)
+            .filter(company_model.Company.id == company_id)
+            .first()
+        )
+        if company and company.regimen in ("SIMPLE", "NO_RESPONSABLE"):
+            iva_soportado = self._get_account_by_code(company_id, "2408")
+            if iva_soportado and iva_soportado.is_active:
+                iva_soportado.is_active = False
+
         self.db.commit()
 
-        # Refresh all accounts to get relationships
         for coa in created_accounts:
             self.db.refresh(coa)
 

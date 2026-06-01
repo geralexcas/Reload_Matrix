@@ -27,7 +27,7 @@ class ChartOfAccounts(Base):
     description = Column(String(500))
     account_type = Column(
         Enum(
-            "ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE", name="account_types"
+            "ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE", "COST", name="account_types"
         ),
         nullable=False,
     )
@@ -46,7 +46,7 @@ class ChartOfAccounts(Base):
     parent = relationship(
         "ChartOfAccounts", remote_side=[id]
     )  # Self-referential for hierarchy
-    children = relationship("ChartOfAccounts")  # For reverse relationship
+    children = relationship("ChartOfAccounts", overlaps="parent")
 
     def __repr__(self):
         return f"<ChartOfAccounts(id={self.id}, code='{self.code}', name='{self.name}', type='{self.account_type}')>"

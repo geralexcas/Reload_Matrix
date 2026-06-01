@@ -9,14 +9,14 @@ class ChartOfAccountsBase(BaseModel):
     code: str = Field(..., max_length=20)
     name: str = Field(..., max_length=255)
     description: Optional[str] = Field(None, max_length=500)
-    account_type: str  # ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+    account_type: str  # ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE, COST
     is_active: bool = True
     parent_id: Optional[int] = None
 
     @field_validator("account_type")
     @classmethod
     def account_type_must_be_valid(cls, v):
-        allowed = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]
+        allowed = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE", "COST"]
         if v not in allowed:
             raise ValueError(f"Account type must be one of {allowed}")
         return v
