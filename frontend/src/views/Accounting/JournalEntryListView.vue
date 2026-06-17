@@ -258,7 +258,7 @@ export default {
     
     loadJournalEntries() {
       // Get company ID from auth store or route
-      const companyId = this.$route.params.companyId || 1 // Default for now
+      const companyId = parseInt(sessionStorage.getItem('selectedCompanyId')) || 1
       this.fetchJournalEntries({ companyId, skip: 0, limit: 1000 })
         .then(res => {
           this.journalEntries = res.data || []
@@ -311,7 +311,7 @@ export default {
     editEntry(entryId) {
       this.editEntryId = entryId
       this.showEditEntry = true
-      this.fetchJournalEntryById({ entryId, companyId: this.$route.params.companyId || 1 })
+      this.fetchJournalEntryById({ entryId, companyId: parseInt(sessionStorage.getItem('selectedCompanyId')) || 1 })
         .then(res => {
           this.entryToEdit = res.data
           // Ensure lines are loaded
@@ -332,8 +332,8 @@ export default {
       this.entryToEdit = null
     },
     
-    handleSaveEntry(entryData) {
-      const companyId = this.$route.params.companyId || 1
+  handleSaveEntry(entryData) {
+    const companyId = parseInt(sessionStorage.getItem('selectedCompanyId')) || 1
       if (this.editEntryId) {
         // Update existing entry
         this.updateJournalEntry({ 
@@ -392,11 +392,15 @@ export default {
         return
       }
       
-      this.postJournalEntry({ entryId, companyId: this.$route.params.companyId || 1 })
-        .then(() => {
+    this.postJournalEntry({ entryId, companyId: parseInt(sessionStorage.getItem('selectedCompanyId')) || 1 })
+      .then(res => {
+        if (res.data.warning) {
+          this.$toast.warning(res.data.warning)
+        } else {
           this.$toast.success('Asiento contable publicado exitosamente')
-          this.loadJournalEntries()
-        })
+        }
+        this.loadJournalEntries()
+      })
         .catch(err => {
           this.error = err.response?.data?.detail || 'Error al publicar asiento contable'
         })

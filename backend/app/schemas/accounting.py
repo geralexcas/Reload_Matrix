@@ -60,6 +60,14 @@ class JournalEntryResponse(JournalEntryBase):
     model_config = {"from_attributes": True}
 
 
+class AccountBriefSchema(BaseModel):
+    id: int
+    code: str
+    name: str
+
+    model_config = {"from_attributes": True}
+
+
 # Journal Entry Line Schema
 class JournalEntryLineBase(BaseModel):
     account_id: int
@@ -85,6 +93,7 @@ class JournalEntryLineResponse(JournalEntryLineBase):
     id: int
     journal_entry_id: int
     created_at: datetime
+    account: Optional[AccountBriefSchema] = None
 
     model_config = {"from_attributes": True}
 
@@ -108,7 +117,7 @@ class JournalEntryWithLinesCreate(BaseModel):
 
 # For responses, we might want to include the lines
 class JournalEntryWithLinesResponse(JournalEntryResponse):
-    lines: List[JournalEntryLineResponse] = []
+    journal_entry_lines: List[JournalEntryLineResponse] = []
 
     model_config = {"from_attributes": True}
 
@@ -441,5 +450,20 @@ class Formulario350Response(BaseModel):
     detalle_ingresos: List[EstadoResultadosAccount] = []
     detalle_costos: List[EstadoResultadosAccount] = []
     detalle_gastos: List[EstadoResultadosAccount] = []
+
+    model_config = {"from_attributes": True}
+
+
+class PostJournalEntryResponse(BaseModel):
+    id: int
+    company_id: int
+    entry_date: datetime
+    description: str
+    reference: Optional[str] = None
+    is_posted: bool = False
+    created_at: datetime
+    updated_at: datetime
+    treasury_sync_count: int = 0
+    warning: Optional[str] = None
 
     model_config = {"from_attributes": True}

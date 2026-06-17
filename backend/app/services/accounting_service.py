@@ -115,6 +115,9 @@ class AccountingService:
     ) -> List[JournalEntry]:
         return (
             self.db.query(JournalEntry)
+            .options(
+                joinedload(JournalEntry.lines).joinedload(JournalEntryLine.account)
+            )
             .filter(JournalEntry.company_id == company_id)
             .offset(skip)
             .limit(limit)
@@ -138,10 +141,19 @@ class AccountingService:
     def get_journal_entry_with_lines(
         self, je_id: int, company_id: int
     ) -> Optional[JournalEntry]:
-        je = self.get_journal_entry_by_id(je_id, company_id)
-        if je:
-            # Eager load the lines
-            self.db.refresh(je, attribute_names=["lines"])
+        je = (
+            self.db.query(JournalEntry)
+            .options(
+                joinedload(JournalEntry.lines).joinedload(JournalEntryLine.account)
+            )
+            .filter(
+                and_(
+                    JournalEntry.id == je_id,
+                    JournalEntry.company_id == company_id,
+                )
+            )
+            .first()
+        )
         return je
 
     def reverse_journal_entry(
@@ -231,10 +243,9 @@ class AccountingService:
             "is_balanced": total_debit == total_credit,
         }
 
-    def post_journal_entry(self, je_id: int, company_id: int) -> Optional[JournalEntry]:
+    def post_journal_entry(self, je_id: int, company_id: int) -> Dict[str, Any]:
         db_je = self.get_journal_entry_by_id(je_id, company_id)
         if db_je and not db_je.is_posted:
-            # Validate that debits equal credits
             lines = (
                 self.db.query(JournalEntryLine)
                 .filter(JournalEntryLine.journal_entry_id == je_id)
@@ -249,18 +260,16 @@ class AccountingService:
 
             db_je.is_posted = True
 
-            # ── Sync Treasury Balances ──────────────────────────────────────────
-            # After posting, check if any line affects a treasury account (bank/cash)
-            # and update the current_balance accordingly.
             from app.models.sql.accounting.bank_account import BankAccount
             from app.models.sql.accounting.cash_account import CashAccount
             from app.models.sql.accounting.treasury_transaction import TreasuryTransaction
+
+            treasury_sync_count = 0
 
             for line in lines:
                 if not line.account_id:
                     continue
 
-                # Get the chart of accounts entry for this line
                 line_coa = (
                     self.db.query(ChartOfAccounts)
                     .filter(ChartOfAccounts.id == line.account_id)
@@ -269,9 +278,8 @@ class AccountingService:
                 if not line_coa:
                     continue
 
-                line_code = line_coa.code  # e.g. "1110" or "111011"
+                line_code = line_coa.code
 
-                # ── Pass 1: exact match by linked_account_id ──────────────────
                 bank_acct = (
                     self.db.query(BankAccount)
                     .filter(
@@ -282,9 +290,6 @@ class AccountingService:
                     .first()
                 )
 
-                # ── Pass 2: fallback – match by account code prefix ───────────
-                # If the bank's linked account code is a prefix of the line's code
-                # (e.g. bank linked to '1110', line uses '111011'), match it.
                 if not bank_acct and line_code:
                     all_bank_accts = (
                         self.db.query(BankAccount)
@@ -304,7 +309,6 @@ class AccountingService:
                             )
                             if candidate_coa:
                                 c_code = candidate_coa.code
-                                # Match if one code is a prefix of the other
                                 if line_code.startswith(c_code) or c_code.startswith(line_code):
                                     bank_acct = candidate
                                     break
@@ -327,9 +331,9 @@ class AccountingService:
                             balance_after=bank_acct.current_balance,
                         )
                         self.db.add(tx)
-                    continue  # A line shouldn't be linked to both bank and cash
+                        treasury_sync_count += 1
+                    continue
 
-                # ── Pass 1: exact match for CashAccount ───────────────────────
                 cash_acct = (
                     self.db.query(CashAccount)
                     .filter(
@@ -340,7 +344,6 @@ class AccountingService:
                     .first()
                 )
 
-                # ── Pass 2: fallback by code prefix for CashAccount ───────────
                 if not cash_acct and line_code:
                     all_cash_accts = (
                         self.db.query(CashAccount)
@@ -382,11 +385,32 @@ class AccountingService:
                             balance_after=cash_acct.current_balance,
                         )
                         self.db.add(tx)
-            # ───────────────────────────────────────────────────────────────────
+                        treasury_sync_count += 1
 
-        self.db.commit()
-        self.db.refresh(db_je)
-        return db_je
+            self.db.commit()
+            self.db.refresh(db_je)
+
+            warning = None
+            if treasury_sync_count == 0:
+                warning = (
+                    "Asiento publicado, pero ninguna línea afecta cuentas de tesorería. "
+                    "Verifique que las cuentas bancarias/caja tengan configurado el campo "
+                    "'Cuenta contable vinculada' (linked_account_id) en el módulo de Tesorería."
+                )
+
+            return {
+                "id": db_je.id,
+                "company_id": db_je.company_id,
+                "entry_date": db_je.entry_date,
+                "description": db_je.description,
+                "reference": db_je.reference,
+                "is_posted": db_je.is_posted,
+                "created_at": db_je.created_at,
+                "updated_at": db_je.updated_at,
+                "treasury_sync_count": treasury_sync_count,
+                "warning": warning,
+            }
+        return None
 
     def get_trial_balance(
         self,

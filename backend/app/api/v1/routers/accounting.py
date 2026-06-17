@@ -209,7 +209,7 @@ def create_journal_entry_with_lines(
 
 
 @router.get(
-    "/journal-entries/", response_model=List[accounting_schema.JournalEntryResponse]
+    "/journal-entries/", response_model=List[accounting_schema.JournalEntryWithLinesResponse]
 )
 def read_journal_entries(
     company_id: int,
@@ -296,7 +296,7 @@ def read_journal_entry_lines_detail(
 
 @router.post(
     "/journal-entries/{je_id}/post/",
-    response_model=accounting_schema.JournalEntryResponse,
+    response_model=accounting_schema.PostJournalEntryResponse,
 )
 def post_journal_entry(
     je_id: int,

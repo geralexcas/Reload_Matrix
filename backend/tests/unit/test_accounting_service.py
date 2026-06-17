@@ -1,6 +1,6 @@
 import pytest
 from decimal import Decimal
-from datetime import date
+from datetime import date, datetime, timezone
 from app.services.accounting_service import AccountingService
 from app.models.sql.accounting.chart_of_accounts import ChartOfAccounts
 from app.models.sql.company import Company
@@ -307,3 +307,238 @@ class TestJournalEntryForInitialStock:
         assert debit_lines[0].debit_amount == Decimal("50000.00")
         assert len(credit_lines) == 1
         assert credit_lines[0].credit_amount == Decimal("50000.00")
+
+
+class TestGetJournalEntryWithLines:
+
+    def test_returns_entry_with_lines_and_account_details(self, db_session, test_company):
+        service = AccountingService(db_session)
+        service.create_default_chart_of_accounts(test_company.id)
+        db_session.commit()
+
+        cash_account = service._get_account_by_code(test_company.id, "111001")
+        expense_account = service._get_account_by_code(test_company.id, "5100")
+
+        from app.models.sql.accounting.journal_entry import JournalEntry
+        from app.models.sql.accounting.journal_entry_line import JournalEntryLine
+
+        je = JournalEntry(
+            entry_date=datetime.now(timezone.utc),
+            description="Test entry with lines",
+            company_id=test_company.id,
+            is_posted=False,
+        )
+        db_session.add(je)
+        db_session.flush()
+
+        line1 = JournalEntryLine(
+            journal_entry_id=je.id,
+            account_id=expense_account.id,
+            debit_amount=Decimal("90000.00"),
+            credit_amount=Decimal("0.00"),
+            description="Gasto internet",
+        )
+        line2 = JournalEntryLine(
+            journal_entry_id=je.id,
+            account_id=cash_account.id,
+            debit_amount=Decimal("0.00"),
+            credit_amount=Decimal("90000.00"),
+            description="Pago internet",
+        )
+        db_session.add_all([line1, line2])
+        db_session.commit()
+
+        result = service.get_journal_entry_with_lines(je.id, test_company.id)
+
+        assert result is not None
+        assert result.id == je.id
+        assert len(result.lines) == 2
+        for line in result.lines:
+            assert line.account is not None
+            assert line.account.code is not None
+            assert line.account.name is not None
+
+    def test_returns_none_for_nonexistent_entry(self, db_session, test_company):
+        service = AccountingService(db_session)
+        result = service.get_journal_entry_with_lines(9999, test_company.id)
+        assert result is None
+
+
+class TestPostJournalEntryTreasurySync:
+
+    def test_post_creates_treasury_transaction_when_linked(self, db_session, test_company):
+        service = AccountingService(db_session)
+        service.create_default_chart_of_accounts(test_company.id)
+        db_session.commit()
+
+        cash_account = service._get_account_by_code(test_company.id, "111001")
+        expense_account = service._get_account_by_code(test_company.id, "5100")
+
+        from app.models.sql.accounting.cash_account import CashAccount
+        from app.models.sql.accounting.journal_entry import JournalEntry
+        from app.models.sql.accounting.journal_entry_line import JournalEntryLine
+
+        cash_acct = CashAccount(
+            company_id=test_company.id,
+            name="Caja Principal",
+            account_type="MAIN_CASH",
+            current_balance=Decimal("500000.00"),
+            initial_balance=Decimal("500000.00"),
+            is_active=True,
+            linked_account_id=cash_account.id,
+        )
+        db_session.add(cash_acct)
+        db_session.commit()
+
+        je = JournalEntry(
+            entry_date=datetime.now(timezone.utc),
+            description="Pago internet",
+            company_id=test_company.id,
+            is_posted=False,
+        )
+        db_session.add(je)
+        db_session.flush()
+
+        line1 = JournalEntryLine(
+            journal_entry_id=je.id,
+            account_id=expense_account.id,
+            debit_amount=Decimal("90000.00"),
+            credit_amount=Decimal("0.00"),
+            description="Gasto internet",
+        )
+        line2 = JournalEntryLine(
+            journal_entry_id=je.id,
+            account_id=cash_account.id,
+            debit_amount=Decimal("0.00"),
+            credit_amount=Decimal("90000.00"),
+            description="Pago internet",
+        )
+        db_session.add_all([line1, line2])
+        db_session.commit()
+
+        result = service.post_journal_entry(je.id, test_company.id)
+
+        assert result is not None
+        assert result["is_posted"] is True
+        assert result["treasury_sync_count"] >= 1
+        assert result["warning"] is None
+
+        from app.models.sql.accounting.treasury_transaction import TreasuryTransaction
+        txs = db_session.query(TreasuryTransaction).filter(
+            TreasuryTransaction.journal_entry_id == je.id
+        ).all()
+        assert len(txs) >= 1
+
+    def test_post_returns_warning_when_no_treasury_linked(self, db_session, test_company):
+        service = AccountingService(db_session)
+        service.create_default_chart_of_accounts(test_company.id)
+        db_session.commit()
+
+        cash_account = service._get_account_by_code(test_company.id, "111001")
+        expense_account = service._get_account_by_code(test_company.id, "5100")
+
+        from app.models.sql.accounting.journal_entry import JournalEntry
+        from app.models.sql.accounting.journal_entry_line import JournalEntryLine
+
+        je = JournalEntry(
+            entry_date=datetime.now(timezone.utc),
+            description="Pago internet sin tesoreria",
+            company_id=test_company.id,
+            is_posted=False,
+        )
+        db_session.add(je)
+        db_session.flush()
+
+        line1 = JournalEntryLine(
+            journal_entry_id=je.id,
+            account_id=expense_account.id,
+            debit_amount=Decimal("90000.00"),
+            credit_amount=Decimal("0.00"),
+            description="Gasto internet",
+        )
+        line2 = JournalEntryLine(
+            journal_entry_id=je.id,
+            account_id=cash_account.id,
+            debit_amount=Decimal("0.00"),
+            credit_amount=Decimal("90000.00"),
+            description="Pago internet",
+        )
+        db_session.add_all([line1, line2])
+        db_session.commit()
+
+        result = service.post_journal_entry(je.id, test_company.id)
+
+        assert result is not None
+        assert result["is_posted"] is True
+        assert result["treasury_sync_count"] == 0
+        assert result["warning"] is not None
+        assert "tesorería" in result["warning"].lower() or "tesorer" in result["warning"]
+
+    def test_post_unbalanced_entry_raises_error(self, db_session, test_company):
+        service = AccountingService(db_session)
+        service.create_default_chart_of_accounts(test_company.id)
+        db_session.commit()
+
+        cash_account = service._get_account_by_code(test_company.id, "111001")
+
+        from app.models.sql.accounting.journal_entry import JournalEntry
+        from app.models.sql.accounting.journal_entry_line import JournalEntryLine
+
+        je = JournalEntry(
+            entry_date=datetime.now(timezone.utc),
+            description="Unbalanced entry",
+            company_id=test_company.id,
+            is_posted=False,
+        )
+        db_session.add(je)
+        db_session.flush()
+
+        line1 = JournalEntryLine(
+            journal_entry_id=je.id,
+            account_id=cash_account.id,
+            debit_amount=Decimal("100.00"),
+            credit_amount=Decimal("0.00"),
+        )
+        db_session.add(line1)
+        db_session.commit()
+
+        with pytest.raises(ValueError, match="balanced"):
+            service.post_journal_entry(je.id, test_company.id)
+
+    def test_post_already_posted_returns_none(self, db_session, test_company):
+        service = AccountingService(db_session)
+        service.create_default_chart_of_accounts(test_company.id)
+        db_session.commit()
+
+        cash_account = service._get_account_by_code(test_company.id, "111001")
+        expense_account = service._get_account_by_code(test_company.id, "5100")
+
+        from app.models.sql.accounting.journal_entry import JournalEntry
+        from app.models.sql.accounting.journal_entry_line import JournalEntryLine
+
+        je = JournalEntry(
+            entry_date=datetime.now(timezone.utc),
+            description="Already posted",
+            company_id=test_company.id,
+            is_posted=True,
+        )
+        db_session.add(je)
+        db_session.flush()
+
+        line1 = JournalEntryLine(
+            journal_entry_id=je.id,
+            account_id=expense_account.id,
+            debit_amount=Decimal("90000.00"),
+            credit_amount=Decimal("0.00"),
+        )
+        line2 = JournalEntryLine(
+            journal_entry_id=je.id,
+            account_id=cash_account.id,
+            debit_amount=Decimal("0.00"),
+            credit_amount=Decimal("90000.00"),
+        )
+        db_session.add_all([line1, line2])
+        db_session.commit()
+
+        result = service.post_journal_entry(je.id, test_company.id)
+        assert result is None

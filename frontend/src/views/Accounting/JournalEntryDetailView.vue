@@ -156,17 +156,14 @@ export default {
       // Get company ID from route or auth (we'll need to pass it or get from store)
       // For simplicity, we'll get it from the journal entry once we have it, but the API needs it
       // We'll assume we can get it from the route or default to 1
-      const companyId = this.$route.params.companyId || 1
+        const companyId = parseInt(sessionStorage.getItem('selectedCompanyId')) || 1
       
       this.fetchJournalEntryById({ entryId, companyId })
         .then(res => {
           this.journalEntry = res.data
-          // Ensure we have the lines
           if (!this.journalEntry.journal_entry_lines) {
-            this.journalEntry.journal_entry_lines = []
+            this.journalEntry.journal_entry_lines = this.journalEntry.lines || []
           }
-          // Load account details for each line (in a real app, we'd eager load or fetch separately)
-          // For now, we'll just note that the account relation should be loaded by the API
           this.loading = false
         })
         .catch(err => {
@@ -195,10 +192,13 @@ export default {
         return
       }
       
-      this.postJournalEntry({ entryId: this.journalEntry.id, companyId: this.$route.params.companyId || 1 })
-        .then(() => {
-          this.$toast.success('Asiento contable publicado exitosamente')
-          // Refresh the entry to show updated status
+      this.postJournalEntry({ entryId: this.journalEntry.id, companyId: parseInt(sessionStorage.getItem('selectedCompanyId')) || 1 })
+        .then(res => {
+          if (res.data.warning) {
+            this.$toast.warning(res.data.warning)
+          } else {
+            this.$toast.success('Asiento contable publicado exitosamente')
+          }
           this.loadJournalEntry()
         })
         .catch(err => {

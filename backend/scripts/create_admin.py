@@ -37,14 +37,9 @@ def get_db_session():
     return SessionLocal()
 
 
-def create_admin_user(db, email, username, password, full_name, company_id=None):
+def create_admin_user(db, email, username, password, full_name, company_id=None, reset=False):
     from app.core.security import get_password_hash, validate_password_strength
     from app.models.sql.user import User
-
-    is_valid, message = validate_password_strength(password)
-    if not is_valid:
-        print(f"ERROR: {message}")
-        return None
 
     existing = (
         db.query(User)
@@ -52,9 +47,27 @@ def create_admin_user(db, email, username, password, full_name, company_id=None)
         .first()
     )
     if existing:
-        print(
-            f"ERROR: Usuario ya existe (id={existing.id}, username={existing.username})"
-        )
+        if not reset:
+            print(
+                f"ERROR: Usuario ya existe (id={existing.id}, username={existing.username}). Use --reset para actualizar contraseña."
+            )
+            return None
+        is_valid, message = validate_password_strength(password)
+        if not is_valid:
+            print(f"ERROR: {message}")
+            return None
+        existing.hashed_password = get_password_hash(password)
+        db.commit()
+        db.refresh(existing)
+        print("✅ Contraseña actualizada exitosamente:")
+        print(f"  ID: {existing.id}")
+        print(f"  Username: {existing.username}")
+        print(f"  Email: {existing.email}")
+        return existing
+
+    is_valid, message = validate_password_strength(password)
+    if not is_valid:
+        print(f"ERROR: {message}")
         return None
 
     hashed_password = get_password_hash(password)
@@ -109,6 +122,7 @@ def main():
     parser.add_argument("--full-name", default="Administrador Sistema")
     parser.add_argument("--company-id", type=int, default=None)
     parser.add_argument("--verify", action="store_true")
+    parser.add_argument("--reset", action="store_true", help="Actualizar contraseña si el usuario ya existe")
 
     args = parser.parse_args()
     db = get_db_session()
@@ -121,6 +135,7 @@ def main():
             password=args.password,
             full_name=args.full_name,
             company_id=args.company_id,
+            reset=args.reset,
         )
         if user and args.verify:
             test_login(db, args.username, args.password)
