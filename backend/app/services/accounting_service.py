@@ -96,6 +96,8 @@ class AccountingService:
         self.db.flush()  # To get the ID without committing
 
         # Create the journal entry lines
+        total_debits = Decimal("0.00")
+        total_credits = Decimal("0.00")
         for line in je_with_lines.lines:
             db_jel = JournalEntryLine(
                 journal_entry_id=db_je.id,
@@ -105,6 +107,13 @@ class AccountingService:
                 description=line.description,
             )
             self.db.add(db_jel)
+            total_debits += line.debit_amount
+            total_credits += line.credit_amount
+
+        if total_debits != total_credits:
+            raise ValueError(
+                f"Journal entry must be balanced (debits={total_debits} != credits={total_credits})"
+            )
 
         self.db.commit()
         self.db.refresh(db_je)
@@ -1346,6 +1355,7 @@ class AccountingService:
         invoices = (
             self.db.query(Invoice)
             .options(joinedload(Invoice.partner), joinedload(Invoice.items))
+            .filter(and_(*inv_filter))
             .all()
         )
         invoices = list({inv.id: inv for inv in invoices}.values())
@@ -1360,6 +1370,7 @@ class AccountingService:
         purchases = (
             self.db.query(Purchase)
             .options(joinedload(Purchase.partner), joinedload(Purchase.items))
+            .filter(and_(*pur_filter))
             .all()
         )
         purchases = list({pur.id: pur for pur in purchases}.values())
@@ -1418,6 +1429,7 @@ class AccountingService:
         journal_entries = (
             self.db.query(JournalEntry)
             .options(joinedload(JournalEntry.lines).joinedload(JournalEntryLine.account))
+            .filter(and_(*je_filter))
             .all()
         )
         journal_entries = list({je.id: je for je in journal_entries}.values())

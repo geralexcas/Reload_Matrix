@@ -111,7 +111,7 @@ export default {
         const params = { company_id: this.$store.getters['company/selectedCompanyId'] || 1 }
         if (this.dateFrom) params.date_from = this.dateFrom
         if (this.dateTo) params.date_to = this.dateTo
-        const res = await api.get(`${process.env.VUE_APP_API_URL}/api/v1/accounting/reporte-egresos/`, { params })
+        const res = await api.get('/api/v1/accounting/reporte-egresos/', { params })
         this.data = res.data
       } catch (err) {
         this.error = err.response?.data?.detail || 'Error al generar reporte'

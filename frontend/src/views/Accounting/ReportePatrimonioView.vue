@@ -176,9 +176,9 @@ export default {
       this.loading = true
       this.error = null
       try {
-        const params = { company_id: this.$route.params.companyId || 1 }
+        const params = { company_id: this.$store.getters['company/selectedCompanyId'] || 1 }
         if (this.cutDate) params.cut_date = this.cutDate
-        const res = await api.get(`${process.env.VUE_APP_API_URL}/api/v1/accounting/reporte-patrimonio/`, { params })
+        const res = await api.get('/api/v1/accounting/reporte-patrimonio/', { params })
         this.data = res.data
       } catch (err) {
         this.error = err.response?.data?.detail || 'Error al generar reporte'
