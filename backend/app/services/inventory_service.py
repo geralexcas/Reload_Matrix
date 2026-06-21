@@ -315,7 +315,7 @@ class InventoryService:
         return db_product
 
     def deduct_stock(
-        self, product_id: int, quantity: float, company_id: int
+        self, product_id: int, quantity: float, company_id: int, commit: bool = True
     ) -> Optional[Product]:
         """Deduct stock for a product. Returns the updated product or raises error."""
         from decimal import Decimal
@@ -343,13 +343,14 @@ class InventoryService:
         if db_product.stock_level < Decimal(str(quantity)):
             raise ValueError(
                 f"¡Ups! Parece que no hay suficiente stock para el producto '{db_product.name}'. "
-                f"Actualmente tienes {db_product.stock_level} unidades disponibles, "
+                f"Actualemente tienes {db_product.stock_level} unidades disponibles, "
                 f"pero estás intentando facturar {quantity}."
             )
 
         db_product.stock_level -= Decimal(str(quantity))
-        self.db.commit()
-        self.db.refresh(db_product)
+        if commit:
+            self.db.commit()
+            self.db.refresh(db_product)
         return db_product
 
     def check_stock_availability(
@@ -369,6 +370,7 @@ class InventoryService:
         reference: str = None,
         reference_id: int = None,
         reference_type: str = None,
+        commit: bool = True,
     ) -> Product:
         """Add stock for a product (e.g., from a purchase)."""
         db_product = self.get_product_by_id(product_id, company_id)
@@ -376,6 +378,7 @@ class InventoryService:
             raise ValueError(f"Product with id {product_id} not found")
 
         db_product.stock_level += Decimal(str(quantity))
-        self.db.commit()
-        self.db.refresh(db_product)
+        if commit:
+            self.db.commit()
+            self.db.refresh(db_product)
         return db_product

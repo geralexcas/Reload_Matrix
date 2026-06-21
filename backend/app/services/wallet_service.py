@@ -65,7 +65,8 @@ class WalletService:
         )
 
     def deposit(
-        self, wallet_id: int, amount: Decimal, description: str, company_id: int, user_id: Optional[int] = None, account_type: Optional[str] = None, account_id: Optional[int] = None
+        self, wallet_id: int, amount: Decimal, description: str, company_id: int, user_id: Optional[int] = None,
+        account_type: Optional[str] = None, account_id: Optional[int] = None, commit: bool = True
     ) -> WalletTransaction:
         wallet = self.get_wallet_by_id(wallet_id, company_id)
         if not wallet:
@@ -154,18 +155,21 @@ class WalletService:
                 reference=f"WAL-{wallet_id}-{tx.id}",
                 company_id=company_id,
                 user_id=user_id,
-                skip_journal_entry=True
+                skip_journal_entry=True,
+                commit=commit,
             )
             
             if je and t_tx:
                 t_tx.journal_entry_id = je.id
 
-        self.db.commit()
-        self.db.refresh(wallet)
+        if commit:
+            self.db.commit()
+            self.db.refresh(wallet)
         return tx
 
     def withdraw(
-        self, wallet_id: int, amount: Decimal, description: str, company_id: int, user_id: Optional[int] = None, account_type: Optional[str] = None, account_id: Optional[int] = None
+        self, wallet_id: int, amount: Decimal, description: str, company_id: int, user_id: Optional[int] = None,
+        account_type: Optional[str] = None, account_id: Optional[int] = None, commit: bool = True
     ) -> WalletTransaction:
         wallet = self.get_wallet_by_id(wallet_id, company_id)
         if not wallet:
@@ -257,14 +261,16 @@ class WalletService:
                 reference=f"WAL-{wallet_id}-{tx.id}",
                 company_id=company_id,
                 user_id=user_id,
-                skip_journal_entry=True
+                skip_journal_entry=True,
+                commit=commit,
             )
             
             if je and t_tx:
                 t_tx.journal_entry_id = je.id
 
-        self.db.commit()
-        self.db.refresh(wallet)
+        if commit:
+            self.db.commit()
+            self.db.refresh(wallet)
         return tx
 
     def get_transactions(

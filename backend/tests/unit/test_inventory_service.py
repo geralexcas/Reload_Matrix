@@ -59,7 +59,7 @@ class TestInventoryService:
             max_stock=Decimal("100.00"),
         )
         product = service.create_product(product_data, test_company.id)
-        with pytest.raises(ValueError, match="Insufficient stock"):
+        with pytest.raises(ValueError, match="no hay suficiente stock"):
             service.deduct_stock(product.id, 10.0, test_company.id)
 
     def test_check_stock_availability(self, db_session, test_company, chart_of_accounts):

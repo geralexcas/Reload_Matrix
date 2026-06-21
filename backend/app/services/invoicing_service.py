@@ -32,17 +32,39 @@ class InvoicingService:
         )
 
         if not resolution:
-            # Create a default resolution "INV-"
-            resolution = InvoiceResolution(
-                company_id=company_id,
-                resolution_type=invoice_type,
-                prefix="INV-",
-                start_number=1,
-                current_number=1,
-                is_active=True
+            # Create a default resolution "INV-" inside a locked scope to avoid race conditions
+            existing = (
+                self.db.query(InvoiceResolution)
+                .filter(
+                    InvoiceResolution.company_id == company_id,
+                    InvoiceResolution.resolution_type == invoice_type,
+                    InvoiceResolution.is_active == True
+                )
+                .with_for_update()
+                .first()
             )
-            self.db.add(resolution)
-            self.db.flush()
+            if existing:
+                resolution = existing
+            else:
+                resolution = InvoiceResolution(
+                    company_id=company_id,
+                    resolution_type=invoice_type,
+                    prefix="INV-",
+                    start_number=1,
+                    current_number=1,
+                    is_active=True
+                )
+                self.db.add(resolution)
+                self.db.flush()
+
+        # Check if we've exceeded the resolution limit
+        if resolution.end_number is not None and resolution.current_number > resolution.end_number:
+            raise ValueError(
+                f"Se ha agotado el rango de numeración de facturas "
+                f"({resolution.current_number} > {resolution.end_number}) "
+                f"para la resolución {resolution.prefix}. "
+                "Configure una nueva resolución de facturación."
+            )
 
         # Generate the next number
         next_number = resolution.current_number
@@ -83,7 +105,8 @@ class InvoicingService:
         }
 
     def _create_automatic_journal_entry(
-        self, db_invoice: Invoice, company_id: int, is_paid: bool = False, payment_method: Optional[str] = None, wallet_amount_applied: Decimal = Decimal("0.00")
+        self, db_invoice: Invoice, company_id: int, is_paid: bool = False, payment_method: Optional[str] = None, wallet_amount_applied: Decimal = Decimal("0.00"),
+        commit: bool = True,
     ):
         """
         Create automatic journal entry when invoice is created.
@@ -135,6 +158,7 @@ class InvoicingService:
             is_paid=is_paid,
             payment_method=payment_method,
             wallet_amount_applied=wallet_amount_applied,
+            commit=commit,
         )
 
     def create_invoice(
@@ -171,13 +195,16 @@ class InvoicingService:
 
         db_invoice = Invoice(**invoice_data, company_id=company_id)
         self.db.add(db_invoice)
-        self.db.commit()
-        self.db.refresh(db_invoice)
+        self.db.flush()
 
-        # Create automatic journal entry
-        self._create_automatic_journal_entry(db_invoice, company_id)
-        self.db.commit()
-        self.db.refresh(db_invoice)
+        try:
+            # Create automatic journal entry
+            self._create_automatic_journal_entry(db_invoice, company_id, commit=False)
+            self.db.commit()
+            self.db.refresh(db_invoice)
+        except Exception:
+            self.db.rollback()
+            raise
 
         return db_invoice
 
@@ -203,7 +230,7 @@ class InvoicingService:
             cufe=invoice_with_items.cufe,
             xml_ubl=invoice_with_items.xml_ubl,
             estado_dian=invoice_with_items.estado_dian
-            or ("NO_APLICA" if invoice_with_items.invoice_type == "CUENTA_COBRO" else "BORRADOR"),  # Default to BORRADOR or NO_APLICA
+            or ("NO_APLICA" if invoice_with_items.invoice_type == "CUENTA_COBRO" else "BORRADOR"),
             motivo_rechazo=invoice_with_items.motivo_rechazo,
             company_id=company_id,
         )
@@ -212,7 +239,7 @@ class InvoicingService:
             db_invoice.status = "PAID"
 
         self.db.add(db_invoice)
-        self.db.flush()  # To get the ID without committing
+        self.db.flush()
 
         # Create the invoice items
         for item in invoice_with_items.items:
@@ -237,99 +264,111 @@ class InvoicingService:
                 repair_order.invoice_id = db_invoice.id
                 repair_order.status = "DELIVERED"
 
-        # Deduct inventory for invoice items that have products linked
-        from app.services.inventory_service import InventoryService
+        try:
+            # Deduct inventory for invoice items that have products linked
+            from app.services.inventory_service import InventoryService
 
-        inventory_service = InventoryService(self.db)
+            inventory_service = InventoryService(self.db)
 
-        for item in db_invoice.items:
-            if item.product_id:
-                inventory_service.deduct_stock(
-                    product_id=item.product_id,
-                    quantity=item.quantity,
-                    company_id=company_id,
-                )
+            for item in db_invoice.items:
+                if item.product_id:
+                    inventory_service.deduct_stock(
+                        product_id=item.product_id,
+                        quantity=item.quantity,
+                        company_id=company_id,
+                        commit=False,
+                    )
 
-        # Create automatic journal entry
-        self._create_automatic_journal_entry(
-            db_invoice, 
-            company_id, 
-            is_paid=invoice_with_items.is_paid, 
-            payment_method=invoice_with_items.payment_method,
-            wallet_amount_applied=invoice_with_items.wallet_amount_applied
-        )
+            # Create automatic journal entry (no commit — caller handles it)
+            self._create_automatic_journal_entry(
+                db_invoice, 
+                company_id, 
+                is_paid=invoice_with_items.is_paid, 
+                payment_method=invoice_with_items.payment_method,
+                wallet_amount_applied=invoice_with_items.wallet_amount_applied,
+                commit=False,
+            )
 
-        # Flush to persist everything so far (no commit yet — treasury/wallet will commit atomically)
-        self.db.flush()
+            self.db.flush()
 
-        # Trigger Treasury Deposit or Wallet Withdrawal if paid
-        if invoice_with_items.is_paid:
-            remaining_to_pay = invoice_with_items.total_amount
-            
-            # 1. Apply Wallet Balance first if specified
-            if invoice_with_items.wallet_amount_applied > 0:
-                from app.services.wallet_service import WalletService
-                wallet_service = WalletService(self.db)
-                wallet = wallet_service.get_wallet_by_partner(db_invoice.partner_id, company_id)
-                if not wallet:
-                    raise ValueError("El socio no tiene un monedero activo para aplicar el saldo.")
+            # Trigger Treasury Deposit or Wallet Withdrawal if paid
+            if invoice_with_items.is_paid:
+                remaining_to_pay = invoice_with_items.total_amount
                 
-                if wallet.balance < invoice_with_items.wallet_amount_applied:
-                    raise ValueError("Saldo insuficiente en el monedero para aplicar el monto especificado.")
-                
-                wallet_service.withdraw(
-                    wallet_id=wallet.id,
-                    amount=invoice_with_items.wallet_amount_applied,
-                    description=f"Aplicación parcial a Factura {db_invoice.invoice_number}",
-                    company_id=company_id
-                )
-                remaining_to_pay -= invoice_with_items.wallet_amount_applied
-
-            # 2. Handle the rest with the selected payment method
-            if remaining_to_pay > 0:
-                if invoice_with_items.payment_method == "WALLET":
+                # 1. Apply Wallet Balance first if specified
+                if invoice_with_items.wallet_amount_applied > 0:
                     from app.services.wallet_service import WalletService
                     wallet_service = WalletService(self.db)
                     wallet = wallet_service.get_wallet_by_partner(db_invoice.partner_id, company_id)
+                    if not wallet:
+                        raise ValueError("El socio no tiene un monedero activo para aplicar el saldo.")
+                    
+                    if wallet.balance < invoice_with_items.wallet_amount_applied:
+                        raise ValueError("Saldo insuficiente en el monedero para aplicar el monto especificado.")
                     
                     wallet_service.withdraw(
                         wallet_id=wallet.id,
-                        amount=remaining_to_pay,
-                        description=f"Pago de Factura {db_invoice.invoice_number}",
-                        company_id=company_id
+                        amount=invoice_with_items.wallet_amount_applied,
+                        description=f"Aplicación parcial a Factura {db_invoice.invoice_number}",
+                        company_id=company_id,
+                        commit=False,
                     )
-                else:
-                    from app.services.treasury_service import TreasuryService
-                    treasury_service = TreasuryService(self.db)
-                    
-                    acct_type = invoice_with_items.payment_account_type
-                    acct_id = invoice_with_items.payment_account_id
-                    
-                    if not acct_type or not acct_id:
-                        if invoice_with_items.payment_method == "CASH":
-                            cash_accounts = treasury_service.get_cash_accounts(company_id)
-                            if cash_accounts:
-                                acct_type = "CASH"
-                                acct_id = cash_accounts[0].id
-                        elif invoice_with_items.payment_method in ("BANK_TRANSFER", "CARD", "TRANSFER"):
-                            try:
-                                bank_accounts = treasury_service.get_bank_accounts(company_id)
-                                if bank_accounts:
-                                    acct_type = "BANK"
-                                    acct_id = bank_accounts[0].id
-                            except AttributeError:
-                                pass # In case get_bank_accounts isn't available
+                    remaining_to_pay -= invoice_with_items.wallet_amount_applied
 
-                    if acct_type and acct_id:
-                        treasury_service.deposit(
-                            account_type=acct_type,
-                            account_id=acct_id,
+                # 2. Handle the rest with the selected payment method
+                if remaining_to_pay > 0:
+                    if invoice_with_items.payment_method == "WALLET":
+                        from app.services.wallet_service import WalletService
+                        wallet_service = WalletService(self.db)
+                        wallet = wallet_service.get_wallet_by_partner(db_invoice.partner_id, company_id)
+                        
+                        wallet_service.withdraw(
+                            wallet_id=wallet.id,
                             amount=remaining_to_pay,
-                            description=f"Pago - Factura {db_invoice.invoice_number}",
-                            reference=f"INV-{db_invoice.id}",
+                            description=f"Pago de Factura {db_invoice.invoice_number}",
                             company_id=company_id,
-                            skip_journal_entry=True
+                            commit=False,
                         )
+                    else:
+                        from app.services.treasury_service import TreasuryService
+                        treasury_service = TreasuryService(self.db)
+                        
+                        acct_type = invoice_with_items.payment_account_type
+                        acct_id = invoice_with_items.payment_account_id
+                        
+                        if not acct_type or not acct_id:
+                            if invoice_with_items.payment_method == "CASH":
+                                cash_accounts = treasury_service.get_cash_accounts(company_id)
+                                if cash_accounts:
+                                    acct_type = "CASH"
+                                    acct_id = cash_accounts[0].id
+                            elif invoice_with_items.payment_method in ("BANK_TRANSFER", "CARD", "TRANSFER"):
+                                try:
+                                    bank_accounts = treasury_service.get_bank_accounts(company_id)
+                                    if bank_accounts:
+                                        acct_type = "BANK"
+                                        acct_id = bank_accounts[0].id
+                                except AttributeError:
+                                    pass
+
+                        if acct_type and acct_id:
+                            treasury_service.deposit(
+                                account_type=acct_type,
+                                account_id=acct_id,
+                                amount=remaining_to_pay,
+                                description=f"Pago - Factura {db_invoice.invoice_number}",
+                                reference=f"INV-{db_invoice.id:06d}",
+                                company_id=company_id,
+                                skip_journal_entry=True,
+                                commit=False,
+                            )
+
+            # Single commit for the entire transaction
+            self.db.commit()
+            self.db.refresh(db_invoice)
+        except Exception:
+            self.db.rollback()
+            raise
 
         return db_invoice
 
@@ -446,12 +485,10 @@ class InvoicingService:
         return db_invoice
 
     def delete_invoice(self, invoice_id: int, company_id: int) -> bool:
-        db_invoice = self.get_invoice_by_id(invoice_id, company_id)
-        if db_invoice:
-            self.db.delete(db_invoice)
-            self.db.commit()
-            return True
-        return False
+        raise ValueError(
+            "La eliminación directa de facturas no está permitida. "
+            "Use cancel_invoice() para anular la factura en su lugar."
+        )
 
     def cancel_invoice(self, invoice_id: int, company_id: int) -> Invoice:
         """
@@ -468,93 +505,102 @@ class InvoicingService:
         if db_invoice.status == "CANCELLED":
             return db_invoice
 
-        # 1. Reverse Inventory (Add stock back)
-        inventory_service = InventoryService(self.db)
         self.db.refresh(db_invoice, attribute_names=["items"])
-        
-        for item in db_invoice.items:
-            if item.product_id:
-                inventory_service.add_stock(
-                    product_id=item.product_id,
-                    quantity=item.quantity,
-                    company_id=company_id,
-                    reference=f"Cancelación de Factura {db_invoice.invoice_number}",
-                    reference_id=db_invoice.id,
-                    reference_type="INVOICE_CANCEL"
-                )
 
-        # 2. Reverse Accounting
-        accounting_service = AccountingService(self.db)
-        reference = f"INV-{db_invoice.id:06d}"
-        original_je = (
-            self.db.query(JournalEntry)
-            .filter(
-                JournalEntry.reference == reference,
-                JournalEntry.company_id == company_id
-            )
-            .first()
-        )
-        if original_je:
-            accounting_service.reverse_journal_entry(
-                je_id=original_je.id,
-                company_id=company_id,
-                description=f"Anulación de Factura #{db_invoice.invoice_number}"
-            )
-
-        # 3. Reverse Wallet Withdrawals
-        partner_id = db_invoice.partner_id
-        if partner_id:
-            from app.services.wallet_service import WalletService
-            from app.models.sql.wallet import WalletTransaction as WalletTxModel
-            wallet_service = WalletService(self.db)
-            wallet = wallet_service.get_wallet_by_partner(partner_id, company_id)
-            if wallet:
-                wallet_txs = (
-                    self.db.query(WalletTxModel)
-                    .filter(
-                        WalletTxModel.wallet_id == wallet.id,
-                        WalletTxModel.transaction_type == "WITHDRAWAL",
-                        WalletTxModel.description.like(f"%{db_invoice.invoice_number}%"),
-                    )
-                    .all()
-                )
-                for wtx in wallet_txs:
-                    wallet_service.deposit(
-                        wallet_id=wallet.id,
-                        amount=wtx.amount,
-                        description=f"Reversión por anulación de factura {db_invoice.invoice_number}",
+        try:
+            # 1. Reverse Inventory (Add stock back)
+            inventory_service = InventoryService(self.db)
+            
+            for item in db_invoice.items:
+                if item.product_id:
+                    inventory_service.add_stock(
+                        product_id=item.product_id,
+                        quantity=item.quantity,
                         company_id=company_id,
+                        reference=f"Cancelación de Factura {db_invoice.invoice_number}",
+                        reference_id=db_invoice.id,
+                        reference_type="INVOICE_CANCEL",
+                        commit=False,
                     )
 
-        # 4. Reverse Treasury Deposit if PAID
-        if db_invoice.status == "PAID":
-            treasury_service = TreasuryService(self.db)
-            from app.models.sql.accounting.treasury_transaction import TreasuryTransaction
-            tx = (
-                self.db.query(TreasuryTransaction)
+            # 2. Reverse Accounting
+            accounting_service = AccountingService(self.db)
+            reference = f"INV-{db_invoice.id:06d}"
+            original_je = (
+                self.db.query(JournalEntry)
                 .filter(
-                    TreasuryTransaction.reference == f"INV-{db_invoice.id}",
-                    TreasuryTransaction.company_id == company_id,
-                    TreasuryTransaction.transaction_type == "DEPOSIT"
+                    JournalEntry.reference == reference,
+                    JournalEntry.company_id == company_id
                 )
                 .first()
             )
-            if tx:
-                account_id = tx.bank_account_id or tx.cash_account_id
-                account_type = tx.account_type
-                if account_id:
-                    treasury_service.withdraw(
-                        account_type=account_type,
-                        account_id=account_id,
-                        amount=tx.amount,
-                        description=f"Reversión por anulación de factura {db_invoice.invoice_number}",
-                        reference=f"REV-INV-{db_invoice.id}",
-                        company_id=company_id
-                    )
+            if original_je:
+                accounting_service.reverse_journal_entry(
+                    je_id=original_je.id,
+                    company_id=company_id,
+                    description=f"Anulación de Factura #{db_invoice.invoice_number}",
+                    commit=False,
+                )
 
-        # 5. Set status to CANCELLED
-        db_invoice.status = "CANCELLED"
-        self.db.commit()
-        self.db.refresh(db_invoice)
+            # 3. Reverse Wallet Withdrawals
+            partner_id = db_invoice.partner_id
+            if partner_id:
+                from app.services.wallet_service import WalletService
+                from app.models.sql.wallet import WalletTransaction as WalletTxModel
+                wallet_service = WalletService(self.db)
+                wallet = wallet_service.get_wallet_by_partner(partner_id, company_id)
+                if wallet:
+                    wallet_txs = (
+                        self.db.query(WalletTxModel)
+                        .filter(
+                            WalletTxModel.wallet_id == wallet.id,
+                            WalletTxModel.transaction_type == "WITHDRAWAL",
+                            WalletTxModel.description.like(f"%{db_invoice.invoice_number}%"),
+                        )
+                        .all()
+                    )
+                    for wtx in wallet_txs:
+                        wallet_service.deposit(
+                            wallet_id=wallet.id,
+                            amount=wtx.amount,
+                            description=f"Reversión por anulación de factura {db_invoice.invoice_number}",
+                            company_id=company_id,
+                            commit=False,
+                        )
+
+            # 4. Reverse Treasury Deposit if PAID
+            if db_invoice.status == "PAID":
+                treasury_service = TreasuryService(self.db)
+                from app.models.sql.accounting.treasury_transaction import TreasuryTransaction
+                tx = (
+                    self.db.query(TreasuryTransaction)
+                    .filter(
+                        TreasuryTransaction.reference == f"INV-{db_invoice.id:06d}",
+                        TreasuryTransaction.company_id == company_id,
+                        TreasuryTransaction.transaction_type == "DEPOSIT"
+                    )
+                    .first()
+                )
+                if tx:
+                    account_id = tx.bank_account_id or tx.cash_account_id
+                    account_type = tx.account_type
+                    if account_id:
+                        treasury_service.withdraw(
+                            account_type=account_type,
+                            account_id=account_id,
+                            amount=tx.amount,
+                            description=f"Reversión por anulación de factura {db_invoice.invoice_number}",
+                            reference=f"REV-INV-{db_invoice.id}",
+                            company_id=company_id,
+                            commit=False,
+                        )
+
+            # 5. Set status to CANCELLED
+            db_invoice.status = "CANCELLED"
+            self.db.commit()
+            self.db.refresh(db_invoice)
+        except Exception:
+            self.db.rollback()
+            raise
         
         return db_invoice

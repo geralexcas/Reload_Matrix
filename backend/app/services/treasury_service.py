@@ -317,6 +317,7 @@ class TreasuryService:
         company_id: int,
         user_id: Optional[int] = None,
         skip_journal_entry: bool = False,
+        commit: bool = True,
     ) -> TreasuryTransaction:
         je = None
 
@@ -393,8 +394,11 @@ class TreasuryService:
         else:
             raise ValueError("Invalid account type")
 
-        self.db.commit()
-        self.db.refresh(account)
+        if commit:
+            self.db.commit()
+            self.db.refresh(account)
+        else:
+            self.db.flush()
 
         tx = TreasuryTransaction(
             company_id=company_id,
@@ -410,8 +414,9 @@ class TreasuryService:
             created_by=user_id,
         )
         self.db.add(tx)
-        self.db.commit()
-        self.db.refresh(tx)
+        if commit:
+            self.db.commit()
+            self.db.refresh(tx)
         return tx
 
     # ──────────────────────────────────────────────
@@ -428,6 +433,7 @@ class TreasuryService:
         company_id: int,
         user_id: Optional[int] = None,
         skip_journal_entry: bool = False,
+        commit: bool = True,
     ) -> TreasuryTransaction:
         if account_type == "BANK":
             account = self.get_bank_account_by_id(account_id, company_id)
@@ -474,8 +480,11 @@ class TreasuryService:
                 ],
             )
 
-        self.db.commit()
-        self.db.refresh(account)
+        if commit:
+            self.db.commit()
+            self.db.refresh(account)
+        else:
+            self.db.flush()
 
         tx = TreasuryTransaction(
             company_id=company_id,
@@ -491,8 +500,8 @@ class TreasuryService:
             created_by=user_id,
         )
         self.db.add(tx)
-        self.db.commit()
-        self.db.refresh(tx)
+        if commit:
+            self.db.refresh(tx)
         return tx
 
     # ──────────────────────────────────────────────

@@ -165,7 +165,7 @@ class AccountingService:
         return je
 
     def reverse_journal_entry(
-        self, je_id: int, company_id: int, description: Optional[str] = None
+        self, je_id: int, company_id: int, description: Optional[str] = None, commit: bool = True
     ) -> JournalEntry:
         """
         Creates a reversing entry for an existing journal entry.
@@ -199,8 +199,9 @@ class AccountingService:
             )
             self.db.add(reverse_line)
 
-        self.db.commit()
-        self.db.refresh(reverse_je)
+        if commit:
+            self.db.commit()
+            self.db.refresh(reverse_je)
         return reverse_je
 
     def get_journal_entry_lines_detail(
@@ -2195,6 +2196,7 @@ class AccountingService:
         is_paid: bool = False,
         payment_method: Optional[str] = None,
         wallet_amount_applied: Decimal = Decimal("0.00"),
+        commit: bool = True,
     ) -> Optional[JournalEntry]:
         """
         Create automatic journal entry from an invoice.
@@ -2388,8 +2390,9 @@ class AccountingService:
 
         self.db.flush()
         self._validate_journal_entry_balance(db_je.id)
-        self.db.commit()
-        self.db.refresh(db_je)
+        if commit:
+            self.db.commit()
+            self.db.refresh(db_je)
         return db_je
 
     def _validate_journal_entry_balance(self, je_id: int) -> None:
