@@ -230,16 +230,12 @@ class InvoicingService:
             )
             self.db.add(db_item)
 
-        self.db.commit()
-        self.db.refresh(db_invoice)
-
         # Link to Repair Order if provided
         if invoice_with_items.repair_id:
             repair_order = self.db.query(RepairOrder).filter(RepairOrder.id == invoice_with_items.repair_id).first()
             if repair_order:
                 repair_order.invoice_id = db_invoice.id
                 repair_order.status = "DELIVERED"
-                self.db.flush()
 
         # Deduct inventory for invoice items that have products linked
         from app.services.inventory_service import InventoryService
@@ -262,8 +258,9 @@ class InvoicingService:
             payment_method=invoice_with_items.payment_method,
             wallet_amount_applied=invoice_with_items.wallet_amount_applied
         )
-        self.db.commit()
-        self.db.refresh(db_invoice)
+
+        # Flush to persist everything so far (no commit yet — treasury/wallet will commit atomically)
+        self.db.flush()
 
         # Trigger Treasury Deposit or Wallet Withdrawal if paid
         if invoice_with_items.is_paid:
@@ -373,19 +370,19 @@ class InvoicingService:
                 line_sub = (item.quantity * item.unit_price) - item.discount
                 subtotal += line_sub
                 vat_amount += item.tax_amount
-            items_list.append({
-                "id": item.id,
-                "invoice_id": item.invoice_id,
-                "description": item.description,
-                "quantity": item.quantity,
-                "unit_price": item.unit_price,
-                "discount": item.discount,
-                "tax_rate": item.tax_rate,
-                "tax_amount": item.tax_amount,
-                "line_total": item.line_total,
-                "product_id": item.product_id,
-                "serial_number": item.serial_number,
-            })
+                items_list.append({
+                    "id": item.id,
+                    "invoice_id": item.invoice_id,
+                    "description": item.description,
+                    "quantity": item.quantity,
+                    "unit_price": item.unit_price,
+                    "discount": item.discount,
+                    "tax_rate": item.tax_rate,
+                    "tax_amount": item.tax_amount,
+                    "line_total": item.line_total,
+                    "product_id": item.product_id,
+                    "serial_number": item.serial_number,
+                })
         data["subtotal"] = subtotal if subtotal else invoice.total_amount
         data["vat_amount"] = vat_amount
         data["items"] = items_list
@@ -462,6 +459,7 @@ class InvoicingService:
         - Reverse inventory stock (add back)
         - Create reversing accounting entry
         - Reverse treasury deposit if it was paid
+        - Reverse wallet withdrawals
         """
         db_invoice = self.get_invoice_by_id(invoice_id, company_id)
         if not db_invoice:
@@ -472,8 +470,6 @@ class InvoicingService:
 
         # 1. Reverse Inventory (Add stock back)
         inventory_service = InventoryService(self.db)
-        # We need the items to reverse stock
-        # If db_invoice was fetched via get_invoice_by_id, we might need to refresh items
         self.db.refresh(db_invoice, attribute_names=["items"])
         
         for item in db_invoice.items:
@@ -505,11 +501,34 @@ class InvoicingService:
                 description=f"Anulación de Factura #{db_invoice.invoice_number}"
             )
 
-        # 3. Reverse Treasury Deposit if PAID
+        # 3. Reverse Wallet Withdrawals
+        partner_id = db_invoice.partner_id
+        if partner_id:
+            from app.services.wallet_service import WalletService
+            from app.models.sql.wallet import WalletTransaction as WalletTxModel
+            wallet_service = WalletService(self.db)
+            wallet = wallet_service.get_wallet_by_partner(partner_id, company_id)
+            if wallet:
+                wallet_txs = (
+                    self.db.query(WalletTxModel)
+                    .filter(
+                        WalletTxModel.wallet_id == wallet.id,
+                        WalletTxModel.transaction_type == "WITHDRAWAL",
+                        WalletTxModel.description.like(f"%{db_invoice.invoice_number}%"),
+                    )
+                    .all()
+                )
+                for wtx in wallet_txs:
+                    wallet_service.deposit(
+                        wallet_id=wallet.id,
+                        amount=wtx.amount,
+                        description=f"Reversión por anulación de factura {db_invoice.invoice_number}",
+                        company_id=company_id,
+                    )
+
+        # 4. Reverse Treasury Deposit if PAID
         if db_invoice.status == "PAID":
             treasury_service = TreasuryService(self.db)
-            # Find the deposit transaction
-            # Usually reference matches INV-{id}
             from app.models.sql.accounting.treasury_transaction import TreasuryTransaction
             tx = (
                 self.db.query(TreasuryTransaction)
@@ -521,7 +540,6 @@ class InvoicingService:
                 .first()
             )
             if tx:
-                # We "withdraw" what was "deposited"
                 account_id = tx.bank_account_id or tx.cash_account_id
                 account_type = tx.account_type
                 if account_id:
@@ -534,7 +552,7 @@ class InvoicingService:
                         company_id=company_id
                     )
 
-        # 4. Set status to CANCELLED
+        # 5. Set status to CANCELLED
         db_invoice.status = "CANCELLED"
         self.db.commit()
         self.db.refresh(db_invoice)

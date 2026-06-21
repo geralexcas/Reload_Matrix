@@ -298,15 +298,20 @@ class InventoryService:
         self, product_id: int, adjustment: int, company_id: int
     ) -> Optional[Product]:
         """Adjust stock level by a positive or negative amount"""
-        db_product = self.get_product_by_id(product_id, company_id)
-        if db_product:
-            new_stock_level = float(db_product.stock_level) + adjustment
-            if new_stock_level < 0:
-                raise ValueError("Stock level cannot be negative")
+        db_product = self.db.query(Product).filter(
+            Product.id == product_id, Product.company_id == company_id
+        ).with_for_update().first()
+        if not db_product:
+            raise ValueError(f"Producto con ID {product_id} no encontrado")
 
-            db_product.stock_level = new_stock_level
-            self.db.commit()
-            self.db.refresh(db_product)
+        decimal_adjustment = Decimal(str(adjustment))
+        new_stock_level = db_product.stock_level + decimal_adjustment
+        if new_stock_level < 0:
+            raise ValueError("Stock level cannot be negative")
+
+        db_product.stock_level = new_stock_level
+        self.db.commit()
+        self.db.refresh(db_product)
         return db_product
 
     def deduct_stock(
@@ -316,6 +321,22 @@ class InventoryService:
         from decimal import Decimal
 
         db_product = self.get_product_by_id(product_id, company_id)
+        if not db_product:
+            raise ValueError(f"Producto con ID {product_id} no encontrado")
+
+        if quantity <= 0:
+            raise ValueError(f"Quantity must be positive, got {quantity}")
+
+        if db_product.stock_level < Decimal(str(quantity)):
+            raise ValueError(
+                f"¡Ups! Parece que no hay suficiente stock para el producto '{db_product.name}'. "
+                f"Actualmente tienes {db_product.stock_level} unidades disponibles, "
+                f"pero estás intentando facturar {quantity}."
+            )
+
+        db_product = self.db.query(Product).filter(
+            Product.id == product_id, Product.company_id == company_id
+        ).with_for_update().first()
         if not db_product:
             raise ValueError(f"Producto con ID {product_id} no encontrado")
 

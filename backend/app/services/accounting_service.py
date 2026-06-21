@@ -85,6 +85,14 @@ class AccountingService:
     def create_journal_entry_with_lines(
         self, je_with_lines: co_schema.JournalEntryWithLinesCreate, company_id: int
     ) -> JournalEntry:
+        # Validate balance before creating any records
+        total_debits = sum(line.debit_amount for line in je_with_lines.lines)
+        total_credits = sum(line.credit_amount for line in je_with_lines.lines)
+        if total_debits != total_credits:
+            raise ValueError(
+                f"Journal entry must be balanced (debits={total_debits} != credits={total_credits})"
+            )
+
         # Create the journal entry
         db_je = JournalEntry(
             entry_date=je_with_lines.entry_date,
@@ -96,8 +104,6 @@ class AccountingService:
         self.db.flush()  # To get the ID without committing
 
         # Create the journal entry lines
-        total_debits = Decimal("0.00")
-        total_credits = Decimal("0.00")
         for line in je_with_lines.lines:
             db_jel = JournalEntryLine(
                 journal_entry_id=db_je.id,
@@ -107,13 +113,6 @@ class AccountingService:
                 description=line.description,
             )
             self.db.add(db_jel)
-            total_debits += line.debit_amount
-            total_credits += line.credit_amount
-
-        if total_debits != total_credits:
-            raise ValueError(
-                f"Journal entry must be balanced (debits={total_debits} != credits={total_credits})"
-            )
 
         self.db.commit()
         self.db.refresh(db_je)
@@ -2163,6 +2162,8 @@ class AccountingService:
                 )
             )
 
+        self.db.flush()
+        self._validate_journal_entry_balance(db_je.id)
         self.db.commit()
         self.db.refresh(db_je)
         return db_je
@@ -2385,9 +2386,26 @@ class AccountingService:
                     )
                 )
 
+        self.db.flush()
+        self._validate_journal_entry_balance(db_je.id)
         self.db.commit()
         self.db.refresh(db_je)
         return db_je
+
+    def _validate_journal_entry_balance(self, je_id: int) -> None:
+        lines = (
+            self.db.query(JournalEntryLine)
+            .filter(JournalEntryLine.journal_entry_id == je_id)
+            .all()
+        )
+        total_debits = sum(l.debit_amount for l in lines)
+        total_credits = sum(l.credit_amount for l in lines)
+        if total_debits != total_credits:
+            self.db.rollback()
+            raise ValueError(
+                f"Journal entry #{je_id} is unbalanced "
+                f"(debits={total_debits} != credits={total_credits})"
+            )
 
     def _create_warranty_journal_entry(
         self,
@@ -2499,6 +2517,8 @@ class AccountingService:
             )
         )
 
+        self.db.flush()
+        self._validate_journal_entry_balance(db_je.id)
         self.db.commit()
         self.db.refresh(db_je)
         return db_je
@@ -2770,6 +2790,8 @@ class AccountingService:
             )
         )
 
+        self.db.flush()
+        self._validate_journal_entry_balance(db_je.id)
         self.db.commit()
         self.db.refresh(db_je)
         return db_je
@@ -2898,6 +2920,8 @@ class AccountingService:
             )
         )
 
+        self.db.flush()
+        self._validate_journal_entry_balance(db_je.id)
         self.db.commit()
         self.db.refresh(db_je)
         return db_je
