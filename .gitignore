@@ -89,3 +89,6 @@ Desktop.ini
 # Si deseas ignorar los archivos .md que usas para pruebas/logs, descomenta la siguiente línea:
 # *.md
 # !README.md
+
+# Carpeta adicional que no debe subirse
+plantlla2/
