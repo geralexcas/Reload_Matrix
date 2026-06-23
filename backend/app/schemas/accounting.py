@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List
 from datetime import date, datetime
 from decimal import Decimal
@@ -48,7 +48,11 @@ class JournalEntryBase(BaseModel):
 
 
 class JournalEntryCreate(JournalEntryBase):
-    pass
+    @model_validator(mode="after")
+    def reject_posted_at_creation(self):
+        if self.is_posted:
+            raise ValueError("Cannot create a journal entry with is_posted=True. Use the post endpoint instead.")
+        return self
 
 
 class JournalEntryResponse(JournalEntryBase):
@@ -82,6 +86,12 @@ class JournalEntryLineBase(BaseModel):
             raise ValueError("Amounts must be non-negative")
         return v
 
+    @model_validator(mode="after")
+    def debit_xor_credit(self):
+        if self.debit_amount > 0 and self.credit_amount > 0:
+            raise ValueError("A journal entry line cannot have both debit and credit amounts")
+        return self
+
     model_config = {"from_attributes": True}
 
 
@@ -107,9 +117,9 @@ class JournalEntryWithLinesCreate(BaseModel):
 
     @field_validator("lines")
     @classmethod
-    def must_have_at_least_one_line(cls, v):
-        if len(v) < 1:
-            raise ValueError("Journal entry must have at least one line")
+    def must_have_at_least_two_lines(cls, v):
+        if len(v) < 2:
+            raise ValueError("Journal entry must have at least two lines (partida doble)")
         return v
 
     model_config = {"from_attributes": True}
