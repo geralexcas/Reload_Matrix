@@ -501,7 +501,12 @@ class TreasuryService:
         )
         self.db.add(tx)
         if commit:
+            # Persistir la transacción antes de refrescarla (similar a deposit)
+            self.db.commit()
             self.db.refresh(tx)
+        else:
+            # Sólo flush para que la instancia tenga ID sin confirmar la transacción completa
+            self.db.flush()
         return tx
 
     # ──────────────────────────────────────────────
