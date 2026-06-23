@@ -7,6 +7,7 @@ from sqlalchemy import (
     Numeric,
     Boolean,
     Enum,
+    UniqueConstraint,
 )
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -18,8 +19,13 @@ class Invoice(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     invoice_number = Column(
-        String(50), unique=True, index=True, nullable=False
+        String(50), unique=False, index=True, nullable=False
     )  # Número de factura
+
+    __table_args__ = (
+        # Permit the same invoice number in different companies (multi‑tenant)
+        UniqueConstraint('company_id', 'invoice_number', name='uq_invoice_number_per_company'),
+    )
     invoice_type = Column(
         Enum("SALE", "PURCHASE", "CUENTA_COBRO", name="invoice_types"), nullable=False
     )  # VENTA, COMPRA, o CUENTA DE COBRO
@@ -126,6 +132,11 @@ class InvoiceResolution(Base):
 
     # Relationships
     company = relationship("Company")
+
+    __table_args__ = (
+        # Ensure only one active resolution per company per type
+        UniqueConstraint('company_id', 'resolution_type', 'is_active', name='uq_active_resolution_per_company_type'),
+    )
 
     def __repr__(self):
         return f"<InvoiceResolution(id={self.id}, prefix='{self.prefix}', current={self.current_number})>"

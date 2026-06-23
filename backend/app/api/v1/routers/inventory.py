@@ -10,7 +10,7 @@ from app.models.sql.inventory import Product as prod_model
 from app.schemas import inventory as inv_schema
 from app.services import inventory_service
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import get_current_user, verify_company_membership
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ router = APIRouter()
 def create_product(
     product: inv_schema.ProductCreate,
     company_id: int,
+    db_company: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):

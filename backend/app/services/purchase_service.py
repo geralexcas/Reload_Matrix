@@ -225,6 +225,7 @@ class PurchaseService:
                         reference=f"Purchase {purchase.purchase_number}",
                         reference_id=purchase.id,
                         reference_type="PURCHASE",
+                        unit_price=item.unit_price,
                     )
         except Exception as e:
             logging.warning(

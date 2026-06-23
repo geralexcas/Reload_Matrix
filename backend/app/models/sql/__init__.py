@@ -10,5 +10,7 @@ from app.models.sql import (
     credit_debit_notes,
     dian_billing,
     purchases,
+    inventory_movement,
+    product_price_history,
 )
-from app.models.sql import accounting
+from app.models.sql import accounting, fiscal_period

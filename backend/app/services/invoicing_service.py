@@ -16,64 +16,70 @@ class InvoicingService:
         self.db = db
 
     def generate_invoice_number(self, company_id: int, invoice_type: str = "SALE") -> str:
+        """Generate the next invoice number atomically.
+
+        This method acquires a row‑level lock on the active ``InvoiceResolution`` for the
+        given company and ``invoice_type``. If none exists it creates one using an
+        ``INSERT`` that may raise ``IntegrityError`` under concurrent load – we catch
+        that error, rollback, and fetch the existing resolution instead. This
+        eliminates the TOCTOU race where two transactions could create duplicate
+        ``InvoiceResolution`` rows.
         """
-        Generates the next invoice number using the InvoiceResolution table with row-level locking.
-        """
-        # Find the active resolution for this company and type, locking it for update
+        # Try to fetch the active resolution with a lock
         resolution = (
             self.db.query(InvoiceResolution)
             .filter(
                 InvoiceResolution.company_id == company_id,
                 InvoiceResolution.resolution_type == invoice_type,
-                InvoiceResolution.is_active == True
+                InvoiceResolution.is_active == True,
             )
             .with_for_update()
             .first()
         )
 
         if not resolution:
-            # Create a default resolution "INV-" inside a locked scope to avoid race conditions
-            existing = (
-                self.db.query(InvoiceResolution)
-                .filter(
-                    InvoiceResolution.company_id == company_id,
-                    InvoiceResolution.resolution_type == invoice_type,
-                    InvoiceResolution.is_active == True
-                )
-                .with_for_update()
-                .first()
+            # No active resolution – attempt to create the default one
+            resolution = InvoiceResolution(
+                company_id=company_id,
+                resolution_type=invoice_type,
+                prefix="INV-",
+                start_number=1,
+                current_number=1,
+                is_active=True,
             )
-            if existing:
-                resolution = existing
-            else:
-                resolution = InvoiceResolution(
-                    company_id=company_id,
-                    resolution_type=invoice_type,
-                    prefix="INV-",
-                    start_number=1,
-                    current_number=1,
-                    is_active=True
-                )
-                self.db.add(resolution)
+            self.db.add(resolution)
+            try:
                 self.db.flush()
+            except Exception as e:
+                # Likely an IntegrityError from a concurrent INSERT – fetch the existing row
+                self.db.rollback()
+                resolution = (
+                    self.db.query(InvoiceResolution)
+                    .filter(
+                        InvoiceResolution.company_id == company_id,
+                        InvoiceResolution.resolution_type == invoice_type,
+                        InvoiceResolution.is_active == True,
+                    )
+                    .with_for_update()
+                    .first()
+                )
+                if not resolution:
+                    # Re‑raise if we still cannot obtain a resolution
+                    raise e
 
-        # Check if we've exceeded the resolution limit
+        # Ensure we have not exceeded the defined range
         if resolution.end_number is not None and resolution.current_number > resolution.end_number:
             raise ValueError(
-                f"Se ha agotado el rango de numeración de facturas "
-                f"({resolution.current_number} > {resolution.end_number}) "
-                f"para la resolución {resolution.prefix}. "
-                "Configure una nueva resolución de facturación."
+                f"Se ha agotado el rango de numeración de facturas ({resolution.current_number} > {resolution.end_number}) "
+                f"para la resolución {resolution.prefix}. Configure una nueva resolución de facturación."
             )
 
-        # Generate the next number
+        # Allocate the next number
         next_number = resolution.current_number
         formatted_number = f"{resolution.prefix}{next_number:08d}"
-        
-        # Increment the sequence
+        # Increment the counter for the next call
         resolution.current_number += 1
         self.db.flush()
-        
         return formatted_number
 
     def _calculate_invoice_values(
@@ -123,13 +129,16 @@ class InvoicingService:
 
         if hasattr(db_invoice, "items") and db_invoice.items:
             for item in db_invoice.items:
-                subtotal += item.line_total
+                # Net amount without tax
+                net_amount = item.line_total - item.tax_amount
+                subtotal += net_amount
                 tax_amount += item.tax_amount
                 if item.product_id:
                     product = self.db.query(Product).filter(Product.id == item.product_id).first()
                     if product and product.purchase_price:
                         total_cost += Decimal(str(product.purchase_price)) * Decimal(str(item.quantity))
         else:
+            # When items are not expanded, assume total_amount already includes tax and subtotal = total_amount (tax will be zeroed later if regime is simple)
             subtotal = db_invoice.total_amount
             tax_amount = Decimal("0.00")
 
@@ -164,49 +173,17 @@ class InvoicingService:
     def create_invoice(
         self, invoice: inv_schema.InvoiceCreate, company_id: int
     ) -> Invoice:
-        # Get company to determine regime
-        db_company = (
-            self.db.query(company_model.Company)
-            .filter(company_model.Company.id == company_id)
-            .first()
+        """Legacy invoice creation – disabled.
+
+        The original implementation created an invoice without deducting
+        inventory, leading to data inconsistency. It is now deliberately
+        disabled. Use ``create_invoice_with_items`` which performs the full
+        workflow (stock deduction, accounting, treasury handling).
+        """
+        raise ValueError(
+            "`create_invoice` is deprecated because it does not handle inventory. "
+            "Use `create_invoice_with_items` instead."
         )
-        if not db_company:
-            raise ValueError("Company not found")
-
-        # Prepare invoice data
-        invoice_data = invoice.model_dump()
-
-        # Generate sequenced invoice number if missing or includes Date.now timestamp indicator
-        if not invoice_data.get("invoice_number") or invoice_data["invoice_number"].startswith("INV-17"):
-            invoice_data["invoice_number"] = self.generate_invoice_number(
-                company_id, invoice_type=invoice_data.get("invoice_type", "SALE")
-            )
-
-        # If tax calculation is needed based on items, we would do it here
-        # For now, we assume the client sends pre-calculated values
-        # But we ensure DIAN compliance fields are set
-        if "estado_dian" not in invoice_data or not invoice_data["estado_dian"]:
-            if db_company.regimen == "NO_RESPONSABLE" or invoice_data.get("invoice_type") == "CUENTA_COBRO":
-                invoice_data["estado_dian"] = "NO_APLICA"
-            else:
-                invoice_data["estado_dian"] = "BORRADOR"
-        if "motivo_rechazo" not in invoice_data:
-            invoice_data["motivo_rechazo"] = None
-
-        db_invoice = Invoice(**invoice_data, company_id=company_id)
-        self.db.add(db_invoice)
-        self.db.flush()
-
-        try:
-            # Create automatic journal entry
-            self._create_automatic_journal_entry(db_invoice, company_id, commit=False)
-            self.db.commit()
-            self.db.refresh(db_invoice)
-        except Exception:
-            self.db.rollback()
-            raise
-
-        return db_invoice
 
     def create_invoice_with_items(
         self, invoice_with_items: inv_schema.InvoiceWithItemsCreate, company_id: int

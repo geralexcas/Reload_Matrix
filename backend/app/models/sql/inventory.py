@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Numeric, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Numeric, Boolean, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -9,10 +9,10 @@ class Product(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     sku = Column(
-        String(50), unique=True, index=True, nullable=False
+        String(50), index=True, nullable=False
     )  # Stock Keeping Unit
     barcode = Column(
-        String(100), unique=True, index=True, nullable=True
+        String(100), index=True, nullable=True
     )  # Código de barras (EAN, UPC, etc.)
     name = Column(String(255), nullable=False)
     description = Column(String(500))
@@ -30,6 +30,13 @@ class Product(Base):
     is_active = Column(Boolean, default=True)
     payment_method = Column(String(50), default="CASH")  # Forma de pago: CASH, BANK_TRANSFER, CREDIT
     company_id = Column(Integer, ForeignKey("companies.id"))
+
+    __table_args__ = (
+        # SKU must be unique per company (multi‑tenant)
+        UniqueConstraint('sku', 'company_id', name='uq_product_sku_company'),
+        # Barcode must be unique per company
+        UniqueConstraint('barcode', 'company_id', name='uq_product_barcode_company'),
+    )
     supplier_id = Column(Integer, ForeignKey("partners.id"), nullable=True) # Proveedor asignado
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(

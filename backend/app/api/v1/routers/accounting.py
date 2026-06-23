@@ -7,7 +7,7 @@ from app.models.sql import company as company_model, user as user_model
 from app.schemas import accounting as accounting_schema
 from app.services import accounting_service
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import get_current_user, verify_company_membership, require_permission
 
 router = APIRouter()
 
@@ -21,8 +21,10 @@ router = APIRouter()
 def create_chart_of_accounts(
     coa: accounting_schema.ChartOfAccountsCreate,
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','create')),
 ):
     """
     Create a new chart of accounts entry.
@@ -47,10 +49,12 @@ def create_chart_of_accounts(
 )
 def read_chart_of_accounts(
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','read')),
 ):
     """
     Retrieve chart of accounts for a company.
@@ -75,8 +79,10 @@ def read_chart_of_accounts(
 def read_chart_of_account(
     coa_id: int,
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','read')),
 ):
     """
     Retrieve a specific chart of accounts entry.
@@ -105,8 +111,10 @@ def update_chart_of_account(
     coa_id: int,
     coa: accounting_schema.ChartOfAccountsCreate,
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','update')),
 ):
     """
     Update a chart of accounts entry.
@@ -131,8 +139,10 @@ def update_chart_of_account(
 def delete_chart_of_account(
     coa_id: int,
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','delete')),
 ):
     """
     Delete a chart of accounts entry.
@@ -162,8 +172,10 @@ def delete_chart_of_account(
 def create_journal_entry(
     je: accounting_schema.JournalEntryCreate,
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','create')),
 ):
     """
     Create a new journal entry.
@@ -189,8 +201,10 @@ def create_journal_entry(
 def create_journal_entry_with_lines(
     je_with_lines: accounting_schema.JournalEntryWithLinesCreate,
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','create')),
 ):
     """
     Create a new journal entry with lines.
@@ -213,10 +227,12 @@ def create_journal_entry_with_lines(
 )
 def read_journal_entries(
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','read')),
 ):
     """
     Retrieve journal entries for a company.
@@ -241,8 +257,10 @@ def read_journal_entries(
 def read_journal_entry(
     je_id: int,
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','read')),
 ):
     """
     Retrieve a specific journal entry with its lines.
@@ -270,8 +288,10 @@ def read_journal_entry(
 def read_journal_entry_lines_detail(
     entry_id: int,
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','read')),
 ):
     """
     Get detailed lines for a specific journal entry.
@@ -301,8 +321,10 @@ def read_journal_entry_lines_detail(
 def post_journal_entry(
     je_id: int,
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','post')),
 ):
     """
     Post a journal entry (mark it as posted to the ledger).
@@ -329,10 +351,12 @@ def post_journal_entry(
 @router.get("/trial-balance", response_model=accounting_schema.TrialBalanceResponse)
 def get_trial_balance(
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','read')),
 ):
     """
     Generate trial balance for the company.
@@ -357,11 +381,13 @@ def get_trial_balance(
 @router.get("/libro-mayor/")
 def get_libro_mayor(
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     account_code: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','read')),
 ):
     """
     Genera el Libro Mayor generalizado.
@@ -388,10 +414,12 @@ def get_libro_mayor(
 @router.get("/libro-ventas/")
 def get_libro_ventas(
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','read')),
 ):
     """
     Genera el Libro de Ventas según normativa colombiana.
@@ -419,10 +447,12 @@ def get_libro_ventas(
 @router.get("/libro-compras/")
 def get_libro_compras(
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','read')),
 ):
     """
     Genera el Libro de Compras según normativa colombiana.
@@ -450,10 +480,12 @@ def get_libro_compras(
 @router.get("/declaracion-iva/")
 def get_declaracion_iva(
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','read')),
 ):
     """
     Declaración de IVA (Formulario 300 DIAN).
@@ -481,10 +513,12 @@ def get_declaracion_iva(
 @router.get("/reporte-retenciones/")
 def get_reporte_retenciones(
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('accounting','read')),
 ):
     """
     Reporte de Retenciones en la fuente y en el IVA.

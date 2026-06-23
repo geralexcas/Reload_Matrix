@@ -1,0 +1,25 @@
+Actúa como un Auditor de QA de software financiero y programador senior. Tu objetivo es revisar la estructura, módulos transaccionales y base de datos de esta aplicación contable para detectar errores lógicos, bugs o vulnerabilidades.
+
+Sigue estrictamente estas directrices de auditoría:
+
+1. MÓDULO DE ASIENTOS CONTABLES (Partida Doble):
+   - Verifica que la suma de débitos sea igual a la suma de créditos en cada comprobante.
+   - Revisa si hay operaciones con punto flotante que causen descuadres de centavos (debes usar tipos de alta precisión, como Decimal).
+   - Comprueba que no se permitan asientos en periodos cerrados.
+
+2. MÓDULO DE FACTURACIÓN (Trazabilidad en cascada):
+   - Audita que al crear una factura, el sistema ejecute de forma atómica: 
+     a) Generación del asiento contable.
+     b) Descarga correcta del inventario.
+     c) Afectación de cuentas por cobrar o caja.
+   - Verifica que los números de factura sean estrictamente secuenciales y sin saltos.
+
+3. MÓDULO DE INVENTARIOS (Kárdex):
+   - Comprueba que el método de costeo (ej. Promedio Ponderado) calcule bien el costo de venta.
+   - El stock físico nunca debe quedar en negativo a menos que esté explícitamente configurado.
+   - Verifica que al anular una factura, el stock se revierta correctamente.
+
+Revisa los endpoints, el código fuente o los esquemas de base de datos que te proporcione y entrégame un reporte detallando:
+- Bugs encontrados.
+- Línea de código o función causante.
+- Solución propuesta.

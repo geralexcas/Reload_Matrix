@@ -25,13 +25,9 @@
 
         <div class="income-section">
           <h4>{{ $t('accounting.income') }}</h4>
-          <div class="line-item">
-            <span>{{ $t('accounting.operationalIncome') }}</span>
-            <span class="amount">{{ formatCOP(data.ingresos_operacionales) }}</span>
-          </div>
-          <div class="line-item">
-            <span>{{ $t('accounting.nonOperationalIncome') }}</span>
-            <span class="amount">{{ formatCOP(data.ingresos_no_operacionales) }}</span>
+          <div v-for="acc in data.ingresos" :key="acc.account_code" class="line-item">
+            <span>{{ acc.account_code }} - {{ acc.account_name }}</span>
+            <span class="amount">{{ formatCOP(acc.balance) }}</span>
           </div>
           <div class="line-item total">
             <span>{{ $t('accounting.grossIncome') }}</span>
@@ -41,9 +37,9 @@
 
         <div class="costs-section">
           <h4>{{ $t('accounting.costs') }}</h4>
-          <div class="line-item">
-            <span>{{ $t('accounting.costOfSales') }}</span>
-            <span class="amount">{{ formatCOP(data.costo_ventas) }}</span>
+          <div v-for="acc in data.costos" :key="acc.account_code" class="line-item">
+            <span>{{ acc.account_code }} - {{ acc.account_name }}</span>
+            <span class="amount">{{ formatCOP(acc.balance) }}</span>
           </div>
           <div class="line-item total">
             <span>{{ $t('accounting.grossProfit') }}</span>
@@ -53,13 +49,9 @@
 
         <div class="expenses-section">
           <h4>{{ $t('accounting.expenses') }}</h4>
-          <div class="line-item">
-            <span>{{ $t('accounting.operatingExpenses') }}</span>
-            <span class="amount">{{ formatCOP(data.gastos_operacionales) }}</span>
-          </div>
-          <div class="line-item">
-            <span>{{ $t('accounting.financialExpenses') }}</span>
-            <span class="amount">{{ formatCOP(data.gastos_financieros) }}</span>
+          <div v-for="acc in data.gastos" :key="acc.account_code" class="line-item">
+            <span>{{ acc.account_code }} - {{ acc.account_name }}</span>
+            <span class="amount">{{ formatCOP(acc.balance) }}</span>
           </div>
           <div class="line-item total">
             <span>{{ $t('accounting.totalExpenses') }}</span>
@@ -129,17 +121,15 @@ export default {
         ['Período', `${this.data.date_from} - ${this.data.date_to}`],
         [],
         ['INGRESOS'],
-        ['Ingresos Operacionales', this.data.ingresos_operacionales],
-        ['Ingresos No Operacionales', this.data.ingresos_no_operacionales],
+        ...this.data.ingresos.map(a => [`${a.account_code} - ${a.account_name}`, a.balance]),
         ['Total Ingresos', this.data.total_ingresos],
         [],
         ['COSTOS'],
-        ['Costo de Ventas', this.data.costo_ventas],
+        ...this.data.costos.map(a => [`${a.account_code} - ${a.account_name}`, a.balance]),
         ['Utilidad Bruta', this.data.utilidad_bruta],
         [],
         ['GASTOS'],
-        ['Gastos Operacionales', this.data.gastos_operacionales],
-        ['Gastos Financieros', this.data.gastos_financieros],
+        ...this.data.gastos.map(a => [`${a.account_code} - ${a.account_name}`, a.balance]),
         ['Total Gastos', this.data.total_gastos],
         [],
         ['UTILIDAD NETA', this.data.utilidad_neta]

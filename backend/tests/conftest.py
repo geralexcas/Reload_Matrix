@@ -1,4 +1,6 @@
 import pytest
+from datetime import datetime, timedelta, timezone
+from app.models.sql.fiscal_period import FiscalPeriod
 from datetime import date
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -91,6 +93,15 @@ def chart_of_accounts(db_session, test_company):
     from app.services.accounting_service import AccountingService
     service = AccountingService(db_session)
     service.create_default_chart_of_accounts(test_company.id)
+    # Create a default open fiscal period covering +/- 1 year from now
+    now = datetime.now(timezone.utc)
+    fp = FiscalPeriod(
+        company_id=test_company.id,
+        start_date=now - timedelta(days=365),
+        end_date=now + timedelta(days=365),
+        is_closed=False,
+    )
+    db_session.add(fp)
     db_session.commit()
 
 

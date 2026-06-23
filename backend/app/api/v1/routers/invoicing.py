@@ -9,7 +9,7 @@ from app.schemas import invoicing as inv_schema
 from app.services import invoicing_service
 from app.services import credit_debit_note_service as cdn_service
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import get_current_user, verify_company_membership, require_permission
 
 router = APIRouter()
 
@@ -20,8 +20,10 @@ router = APIRouter()
 def create_invoice(
     invoice: inv_schema.InvoiceCreate,
     company_id: int,
+    company: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
+    permission: user_model.User = Depends(require_permission('invoicing','create')),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -31,8 +33,9 @@ def create_invoice(
     if db_company is None:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    service = invoicing_service.InvoicingService(db)
-    return service.create_invoice(invoice, company_id)
+    # The plain invoice creation endpoint is deprecated.  All invoices must include items.
+    # Enforce usage of the "/with-items/" endpoint.
+    raise HTTPException(status_code=400, detail="Use POST /with-items/ to create invoices with items.")
 
 
 @router.post(

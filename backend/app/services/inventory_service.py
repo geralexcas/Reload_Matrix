@@ -6,6 +6,7 @@ from app.models.sql import company as company_model
 from app.schemas import inventory as inv_schema
 from app.services.accounting_service import AccountingService
 from app.services.treasury_service import TreasuryService
+from app.models.sql.inventory_movement import InventoryMovement, InventoryMovementType
 
 
 class InventoryService:
@@ -273,7 +274,7 @@ class InventoryService:
                 if existing_product:
                     raise ValueError("Product with this barcode already exists")
 
-            for key, value in product.model_dump(exclude={'skip_initial_stock_purchase'}).items():
+            for key, value in product.model_dump(exclude={'skip_initial_stock_purchase', 'stock_level', 'purchase_price'}).items():
                 setattr(db_product, key, value)
             self.db.commit()
             self.db.refresh(db_product)
@@ -310,29 +311,29 @@ class InventoryService:
             raise ValueError("Stock level cannot be negative")
 
         db_product.stock_level = new_stock_level
+        # Register inventory movement (Kardex) for adjustment
+        movement = InventoryMovement(
+            product_id=product_id,
+            company_id=company_id,
+            movement_type=InventoryMovementType.ADJUST,
+            quantity=Decimal(str(adjustment)),
+            reference=None,
+            reference_id=None,
+            reference_type=None,
+        )
+        self.db.add(movement)
         self.db.commit()
         self.db.refresh(db_product)
         return db_product
 
     def deduct_stock(
-        self, product_id: int, quantity: float, company_id: int, commit: bool = True
+        self, product_id: int, quantity: Decimal, company_id: int, commit: bool = True
     ) -> Optional[Product]:
         """Deduct stock for a product. Returns the updated product or raises error."""
         from decimal import Decimal
 
-        db_product = self.get_product_by_id(product_id, company_id)
-        if not db_product:
-            raise ValueError(f"Producto con ID {product_id} no encontrado")
-
         if quantity <= 0:
             raise ValueError(f"Quantity must be positive, got {quantity}")
-
-        if db_product.stock_level < Decimal(str(quantity)):
-            raise ValueError(
-                f"¡Ups! Parece que no hay suficiente stock para el producto '{db_product.name}'. "
-                f"Actualmente tienes {db_product.stock_level} unidades disponibles, "
-                f"pero estás intentando facturar {quantity}."
-            )
 
         db_product = self.db.query(Product).filter(
             Product.id == product_id, Product.company_id == company_id
@@ -343,11 +344,22 @@ class InventoryService:
         if db_product.stock_level < Decimal(str(quantity)):
             raise ValueError(
                 f"¡Ups! Parece que no hay suficiente stock para el producto '{db_product.name}'. "
-                f"Actualemente tienes {db_product.stock_level} unidades disponibles, "
+                f"Actualmente tienes {db_product.stock_level} unidades disponibles, "
                 f"pero estás intentando facturar {quantity}."
             )
 
         db_product.stock_level -= Decimal(str(quantity))
+        # Register inventory movement (Kardex) for deduction
+        movement = InventoryMovement(
+            product_id=product_id,
+            company_id=company_id,
+            movement_type=InventoryMovementType.DEDUCT,
+            quantity=Decimal(str(quantity)),
+            reference=None,
+            reference_id=None,
+            reference_type=None,
+        )
+        self.db.add(movement)
         if commit:
             self.db.commit()
             self.db.refresh(db_product)
@@ -360,24 +372,63 @@ class InventoryService:
         db_product = self.get_product_by_id(product_id, company_id)
         if not db_product:
             return False
-        return db_product.stock_level >= quantity
+        return db_product.stock_level >= Decimal(str(quantity))
 
     def add_stock(
         self,
         product_id: int,
-        quantity: float,
+        quantity: Decimal,
         company_id: int,
         reference: str = None,
         reference_id: int = None,
         reference_type: str = None,
+        unit_price: Optional[Decimal] = None,
         commit: bool = True,
     ) -> Product:
         """Add stock for a product (e.g., from a purchase)."""
-        db_product = self.get_product_by_id(product_id, company_id)
+        db_product = self.db.query(Product).filter(Product.id == product_id, Product.company_id == company_id).with_for_update().first()
         if not db_product:
             raise ValueError(f"Product with id {product_id} not found")
 
-        db_product.stock_level += Decimal(str(quantity))
+        # Capture current stock BEFORE update for weighted average calculation
+        previous_stock = db_product.stock_level
+
+        # Update stock level
+        db_product.stock_level = previous_stock + Decimal(str(quantity))
+
+        # Weighted average cost if unit_price provided
+        if unit_price is not None:
+            current_price = db_product.purchase_price or Decimal("0.00")
+            total_existing = previous_stock * current_price
+            total_new = Decimal(str(quantity)) * unit_price
+            new_total_stock = previous_stock + Decimal(str(quantity))
+            if new_total_stock > 0:
+                new_average = (total_existing + total_new) / new_total_stock
+                db_product.purchase_price = new_average.quantize(Decimal("0.01"))
+            else:
+                db_product.purchase_price = unit_price
+
+            # Record price history
+            from app.models.sql.product_price_history import ProductPriceHistory
+            price_hist = ProductPriceHistory(
+                product_id=product_id,
+                company_id=company_id,
+                price=unit_price,
+            )
+            self.db.add(price_hist)
+
+        # Register inventory movement (Kardex)
+        movement = InventoryMovement(
+            product_id=product_id,
+            company_id=company_id,
+            movement_type=InventoryMovementType.ADD,
+            quantity=Decimal(str(quantity)),
+            reference=reference,
+            reference_id=reference_id,
+            reference_type=reference_type,
+        )
+        self.db.add(movement)
+
         if commit:
             self.db.commit()
             self.db.refresh(db_product)
