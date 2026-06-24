@@ -169,6 +169,11 @@ export default {
         return
       }
 
+      if (form.value.document_type === 'NIT' && !form.value.dv) {
+        alert('Para NIT debe ingresar el Dígito de Verificación (DV)')
+        return
+      }
+
       loading.value = true
       try {
         const payload = {

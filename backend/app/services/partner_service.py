@@ -77,7 +77,7 @@ class PartnerService:
         if not db_company:
             raise ValueError("Company not found")
 
-        if not self._validate_nit_dv(partner.nit, partner.dv):
+        if partner.dv and not self._validate_nit_dv(partner.nit, partner.dv):
             raise ValueError("Invalid NIT or verification digit (DV)")
 
         db_partner = partner_model.Partner(
@@ -117,7 +117,7 @@ class PartnerService:
         db_partner = self.get_partner_by_id(partner_id, company_id)
         if db_partner:
             # Validate NIT and DV if they are being updated
-            if not self._validate_nit_dv(partner.nit, partner.dv):
+            if partner.dv and not self._validate_nit_dv(partner.nit, partner.dv):
                 raise ValueError("Invalid NIT or verification digit (DV)")
 
             for key, value in partner.model_dump().items():
