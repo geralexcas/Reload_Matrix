@@ -759,10 +759,10 @@ class AccountingService:
                 tax_rate_val = item.tax_rate if item.tax_rate is not None else Decimal("0.00")
                 tax_rate = self._parse_tax_rate(tax_rate_val)
 
-                if self._is_approx_equal(tax_rate, Decimal("0.19")):
+                if item_tax_amount > 0 and self._is_approx_equal(tax_rate, Decimal("0.19")):
                     base_iva_19 += line_base
                     iva_19 += item_tax_amount
-                elif self._is_approx_equal(tax_rate, Decimal("0.05")):
+                elif item_tax_amount > 0 and self._is_approx_equal(tax_rate, Decimal("0.05")):
                     base_iva_5 += line_base
                     iva_5 += item_tax_amount
                 else:
