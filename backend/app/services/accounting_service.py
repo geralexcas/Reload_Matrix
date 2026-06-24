@@ -382,7 +382,7 @@ class AccountingService:
                         )
                         if candidate_coa:
                             c_code = candidate_coa.code
-                            if line_code == c_code:
+                            if line_code.startswith(c_code) or c_code.startswith(line_code):
                                 bank_acct = candidate
                                 break
 
@@ -438,7 +438,7 @@ class AccountingService:
                         )
                         if candidate_coa:
                             c_code = candidate_coa.code
-                            if line_code == c_code:
+                            if line_code.startswith(c_code) or c_code.startswith(line_code):
                                 cash_acct = candidate
                                 break
                 if not cash_acct:
