@@ -5,6 +5,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     postgresql-client \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser -d /app -s /sbin/nologin appuser
@@ -13,12 +14,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 RUN chown -R appuser:appuser /app \
     && mkdir -p /app/uploads/logos \
     && chown -R appuser:appuser /app/uploads
 
-USER appuser
+ENTRYPOINT ["/entrypoint.sh"]
 
 EXPOSE 8000
 

@@ -67,11 +67,16 @@
           <div class="selected-file">{{ selectedBackup }}</div>
           <p class="danger-text">Esta acción borrará los datos actuales y no se puede deshacer.</p>
         </div>
-        <div class="modal-actions">
+        <div class="modal-actions" v-if="!loading">
           <button class="btn btn-secondary" @click="showRestoreConfirm = false">Cancelar</button>
-          <button class="btn btn-warning" @click="executeRestore" :disabled="loading">
-            {{ loading ? 'Restaurando...' : 'Confirmar Restauración' }}
+          <button class="btn btn-warning" @click="executeRestore">
+            Confirmar Restauración
           </button>
+        </div>
+        <div class="restore-progress" v-else>
+          <div class="spinner"></div>
+          <p>Restaurando el sistema, esto puede tardar varios minutos...</p>
+          <p class="text-muted">No cierre ni recargue esta ventana.</p>
         </div>
       </div>
     </div>
@@ -79,13 +84,16 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, getCurrentInstance } from 'vue'
 import api from '@/services/api'
 import store from '@/store'
 
 export default {
   name: 'BackupView',
   setup() {
+    const { proxy } = getCurrentInstance()
+    const toast = proxy.$toast
+
     const backups = ref([])
     const loading = ref(false)
     const fetching = ref(false)
@@ -110,7 +118,7 @@ export default {
         await api.post('/api/v1/admin/backups/create')
         await fetchBackups()
       } catch (err) {
-        alert('Error: ' + (err.response?.data?.detail || err.message))
+        toast.error('Error al crear respaldo: ' + (err.response?.data?.detail || err.message))
       } finally {
         loading.value = false
       }
@@ -129,7 +137,7 @@ export default {
         link.click()
         link.remove()
       } catch (err) {
-        alert('Error al descargar: ' + (err.response?.data?.detail || err.message))
+        toast.error('Error al descargar: ' + (err.response?.data?.detail || err.message))
       }
     }
 
@@ -138,8 +146,9 @@ export default {
       try {
         await api.delete(`/api/v1/admin/backups/${filename}`)
         await fetchBackups()
+        toast.success('Respaldo eliminado exitosamente')
       } catch (err) {
-        alert('Error: ' + (err.response?.data?.detail || err.message))
+        toast.error('Error al eliminar: ' + (err.response?.data?.detail || err.message))
       }
     }
 
@@ -151,12 +160,14 @@ export default {
     const executeRestore = async () => {
       loading.value = true
       try {
-        await api.post(`/api/v1/admin/backups/restore/${selectedBackup.value}`)
+        await api.post(`/api/v1/admin/backups/restore/${selectedBackup.value}`, null, {
+          timeout: 600000
+        })
         showRestoreConfirm.value = false
-        alert('Restauración completada con éxito.')
-        window.location.reload()
+        toast.success('Restauración completada con éxito')
+        setTimeout(() => window.location.reload(), 1000)
       } catch (err) {
-        alert('Error: ' + (err.response?.data?.detail || err.message))
+        toast.error('Error al restaurar: ' + (err.response?.data?.detail || err.message))
       } finally {
         loading.value = false
       }
@@ -173,8 +184,9 @@ export default {
           headers: { 'Content-Type': 'multipart/form-data' }
         })
         await fetchBackups()
+        toast.success('Archivo subido exitosamente')
       } catch (err) {
-        alert('Error: ' + (err.response?.data?.detail || err.message))
+        toast.error('Error al subir archivo: ' + (err.response?.data?.detail || err.message))
       } finally {
         loading.value = false
       }
@@ -334,5 +346,28 @@ export default {
   padding: 40px;
   text-align: center;
   color: #6c757d;
+}
+
+.restore-progress {
+  text-align: center;
+  padding: 30px;
+}
+
+.restore-progress p {
+  margin: 8px 0;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #eee;
+  border-top-color: #ffc107;
+  border-radius: 50%;
+  margin: 0 auto 15px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>
