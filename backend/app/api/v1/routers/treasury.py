@@ -7,7 +7,7 @@ from app.models.sql import company as company_model, user as user_model
 from app.schemas import treasury as treasury_schema
 from app.services import treasury_service
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import get_current_user, verify_company_membership
 
 router = APIRouter()
 
@@ -35,6 +35,7 @@ def _verify_company(db: Session, company_id: int):
 def create_bank_account(
     data: treasury_schema.BankAccountCreate,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -51,6 +52,7 @@ def get_bank_accounts(
     company_id: int = Query(...),
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -65,6 +67,7 @@ def get_bank_accounts(
 def get_bank_account(
     bank_id: int,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -83,6 +86,7 @@ def update_bank_account(
     bank_id: int,
     data: treasury_schema.BankAccountUpdate,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -98,6 +102,7 @@ def update_bank_account(
 def deactivate_bank_account(
     bank_id: int,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -120,6 +125,7 @@ def get_bank_account_transactions(
     company_id: int = Query(...),
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -143,6 +149,7 @@ def get_bank_account_transactions(
 def create_cash_account(
     data: treasury_schema.CashAccountCreate,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -159,6 +166,7 @@ def get_cash_accounts(
     company_id: int = Query(...),
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -173,6 +181,7 @@ def get_cash_accounts(
 def get_cash_account(
     cash_id: int,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -191,6 +200,7 @@ def update_cash_account(
     cash_id: int,
     data: treasury_schema.CashAccountUpdate,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -206,6 +216,7 @@ def update_cash_account(
 def deactivate_cash_account(
     cash_id: int,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -228,6 +239,7 @@ def get_cash_account_transactions(
     company_id: int = Query(...),
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -251,6 +263,7 @@ def get_cash_account_transactions(
 def deposit(
     data: treasury_schema.DepositRequest,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -278,6 +291,7 @@ def deposit(
 def withdraw(
     data: treasury_schema.WithdrawalRequest,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -305,6 +319,7 @@ def withdraw(
 def transfer(
     data: treasury_schema.TransferRequest,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -342,6 +357,7 @@ def record_bank_fee(
     description: str = Query(""),
     reference: str = Query(""),
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -371,6 +387,7 @@ def record_bank_interest(
     description: str = Query(""),
     reference: str = Query(""),
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -402,6 +419,7 @@ def record_bank_interest(
 def issue_check(
     data: treasury_schema.CheckRegisterCreate,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -420,6 +438,7 @@ def get_checks(
     status: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -441,6 +460,7 @@ def update_check_status(
     check_id: int,
     data: treasury_schema.CheckStatusUpdate,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -448,7 +468,7 @@ def update_check_status(
     service = treasury_service.TreasuryService(db)
     try:
         result = service.update_check_status(
-            check_id, data.status, company_id, user_id=current_user.id
+            check_id, data.status, company_id, user_id=current_user.id, bounce_fee=data.bounce_fee
         )
         if not result:
             raise HTTPException(status_code=404, detail="Check not found")
@@ -465,6 +485,7 @@ def update_check_status(
 @router.get("/summary/")
 def get_treasury_summary(
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -478,6 +499,7 @@ def get_cash_flow(
     company_id: int = Query(...),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -497,6 +519,7 @@ def get_treasury_transactions(
     date_to: Optional[datetime] = Query(None),
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -526,6 +549,7 @@ def get_treasury_transactions(
 def create_reconciliation(
     data: treasury_schema.BankReconciliationCreate,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -545,6 +569,7 @@ def get_reconciliations(
     bank_account_id: Optional[int] = None,
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -562,6 +587,7 @@ def get_reconciliations(
 def get_reconciliation(
     recon_id: int,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -582,6 +608,7 @@ def match_transaction(
     recon_id: int,
     data: treasury_schema.MatchTransactionRequest,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -602,6 +629,7 @@ def add_outstanding_item(
     recon_id: int,
     data: treasury_schema.AddOutstandingItemRequest,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -620,6 +648,7 @@ def add_outstanding_item(
 def complete_reconciliation(
     recon_id: int,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):

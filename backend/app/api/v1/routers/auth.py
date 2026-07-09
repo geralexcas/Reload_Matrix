@@ -89,9 +89,17 @@ async def refresh_access_token(
     if not security.verify_password(
         token_data.refresh_token, user.hashed_refresh_token
     ):
+        user.hashed_refresh_token = None
+        db.commit()
+        from app.core.audit import log_security_event
+        log_security_event(
+            user_id=user.id,
+            event_type="REFRESH_TOKEN_REUSE_DETECTED",
+            details="Intento de reusar refresh token inválido"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token has been revoked",
+            detail="Refresh token has been revoked - possible security breach",
         )
     if not user.is_active:
         raise HTTPException(
@@ -102,9 +110,18 @@ async def refresh_access_token(
     access_token = security.create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
+    
+    # Generate new refresh token
+    refresh_token_expires = timedelta(days=security.REFRESH_TOKEN_EXPIRE_DAYS)
+    new_refresh_token = security.create_refresh_token(
+        data={"sub": user.username}, expires_delta=refresh_token_expires
+    )
+    user.hashed_refresh_token = security.get_password_hash(new_refresh_token)
+    db.commit()
+
     return {
         "access_token": access_token,
-        "refresh_token": token_data.refresh_token,
+        "refresh_token": new_refresh_token,
         "token_type": "bearer",
     }
 
@@ -170,25 +187,4 @@ def register_user(user: user_schema.UserCreate, db: Session = Depends(get_db)):
     db.refresh(db_user)
     return db_user
 
-@router.post("/test-token")
-def create_test_token(
-    username: str,
-    db: Session = Depends(get_db)
-):
-    """Crear token de larga duración para pruebas (solo en entorno de desarrollo/testing)"""
-    import os
-    if os.getenv("ENVIRONMENT", "development") not in ["development", "testing"]:
-        raise HTTPException(status_code=403, detail="Not allowed outside development/testing")
-    
-    user = db.query(user_model.User).filter(user_model.User.username == username).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Token de 24 horas
-    access_token_expires = timedelta(hours=24)
-    access_token = security.create_access_token(
-        data={"sub": user.username},
-        expires_delta=access_token_expires
-    )
-    
-    return {"access_token": access_token, "token_type": "bearer"}
+

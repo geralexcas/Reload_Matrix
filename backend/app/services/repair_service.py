@@ -344,7 +344,7 @@ class RepairService:
 
     def cancel_repair_order(self, repair_order_id: int, company_id: int) -> RepairOrder:
         """
-        Cancel a repair order and its associated invoice if it exists.
+        Cancel a repair order and reverse all effects (inventory, invoice)
         """
         db_ro = self.get_repair_order_with_items(repair_order_id, company_id)
         if not db_ro:
@@ -353,22 +353,51 @@ class RepairService:
         if db_ro.status == "CANCELLED":
             return db_ro
 
-        # 1. Cancel associated invoice if exists
-        if db_ro.invoice_id:
-            from app.services.invoicing_service import InvoicingService
-            inv_service = InvoicingService(self.db)
-            try:
-                inv_service.cancel_invoice(db_ro.invoice_id, company_id)
-            except Exception as e:
-                # If invoice can't be cancelled, we might still want to proceed or log it
-                print(f"Warning: Associated invoice {db_ro.invoice_id} could not be cancelled: {e}")
+        try:
+            # 1. Revertir inventario ANTES de cancelar la factura
+            if db_ro.invoice_id and db_ro.items:
+                from app.services.inventory_service import InventoryService
+                inventory_service = InventoryService(self.db)
+                
+                for repair_item in db_ro.items:
+                    if repair_item.product_id:
+                        # Devolver al inventario
+                        inventory_service.add_stock(
+                            product_id=repair_item.product_id,
+                            quantity=repair_item.quantity,
+                            company_id=company_id,
+                            reference=f"Cancel Repair {db_ro.order_number}",
+                            reference_id=db_ro.id,
+                            reference_type="REPAIR_CANCEL",
+                            commit=False,
+                        )
 
-        # 2. Set status to CANCELLED
-        db_ro.status = "CANCELLED"
-        self.db.commit()
-        self.db.refresh(db_ro)
-        
-        return db_ro
+            # 2. Cancelar factura si existe
+            if db_ro.invoice_id:
+                from app.services.invoicing_service import InvoicingService
+                inv_service = InvoicingService(self.db)
+                try:
+                    if hasattr(inv_service, 'cancel_invoice'):
+                        inv_service.cancel_invoice(db_ro.invoice_id, company_id)
+                    else:
+                        from app.models.sql.invoicing import Invoice
+                        invoice = self.db.query(Invoice).filter(
+                            Invoice.id == db_ro.invoice_id
+                        ).first()
+                        if invoice:
+                            invoice.status = "CANCELLED"
+                except Exception as e:
+                    print(f"Warning: Associated invoice {db_ro.invoice_id} could not be cancelled: {e}")
+
+            # 3. Marcar como cancelada
+            db_ro.status = "CANCELLED"
+            self.db.commit()
+            self.db.refresh(db_ro)
+            
+            return db_ro
+        except Exception as e:
+            self.db.rollback()
+            raise ValueError(f"Error al cancelar orden de reparación: {str(e)}")
 
     # Repair Item methods
     def create_repair_item(

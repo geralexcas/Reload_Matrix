@@ -14,41 +14,31 @@ class PartnerService:
     def _validate_nit_dv(self, nit: str, dv: str) -> bool:
         """
         Validate Colombian NIT with verification digit (DV)
-        Algorithm: Modulo 11 with weights 71 to 2
+        Rules:
+        - Personas Naturales: 6-10 dígitos (Cédula)
+        - Personas Jurídicas: 9 dígitos
         """
         clean_nit = re.sub(r"[-\s]", "", nit)
 
-        if not clean_nit.isdigit() or len(clean_nit) < 2:
+        if not clean_nit.isdigit() or len(clean_nit) < 6:
+            return False
+        
+        if len(clean_nit) > 10:
             return False
 
-        if len(dv) != 1 or not (dv.isdigit() or dv.isalpha()):
+        if len(dv) != 1 or not (dv.isdigit() or dv.upper() == 'K'):
             return False
 
         dv = dv.upper()
 
-        total = 0
-        weights = [
-            71,
-            69,
-            67,
-            59,
-            53,
-            47,
-            43,
-            41,
-            37,
-            31,
-            29,
-            23,
-            19,
-            17,
-            13,
-            7,
-            5,
-            3,
-            2,
-        ]
+        nit_int = int(clean_nit)
+        if nit_int < 100000:
+            return False
 
+        total = 0
+        weights = [71, 69, 67, 59, 53, 47, 43, 41, 37, 31, 29, 23, 19, 17, 13, 7, 5, 3, 2]
+
+        # Aplicar pesos de izquierda a derecha (algoritmo colombiano Módulo 11)
         for i, digit in enumerate(clean_nit):
             if i >= len(weights):
                 break

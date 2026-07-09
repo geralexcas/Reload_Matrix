@@ -67,6 +67,7 @@ def create_product(
 def bulk_create_products(
     bulk_data: inv_schema.ProductBulkCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -93,6 +94,7 @@ def read_products(
     company_id: int,
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -115,6 +117,7 @@ def read_products(
 @router.get("/categories", response_model=List[str])
 def get_product_categories(
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -147,6 +150,7 @@ def get_product_categories(
 def read_product(
     product_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -174,6 +178,7 @@ def update_product(
     product_id: int,
     product: inv_schema.ProductCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -200,6 +205,7 @@ def update_product(
 def delete_product(
     product_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -230,6 +236,7 @@ def delete_product(
 def get_product_by_barcode(
     barcode: str,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -259,6 +266,7 @@ def get_low_stock_products(
     company_id: int,
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -283,6 +291,7 @@ def adjust_stock_level(
     product_id: int,
     adjustment: int,  # Can be positive or negative
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -310,6 +319,7 @@ def deduct_stock(
     product_id: int,
     quantity: float,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -339,6 +349,7 @@ def check_stock_availability(
     product_id: int,
     quantity: float,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):

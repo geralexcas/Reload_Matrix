@@ -69,3 +69,18 @@ def log_audit(
         ip_address=ip_address,
     )
     db.add(entry)
+
+from datetime import datetime, timezone
+
+def log_security_event(user_id: int, event_type: str, details: str, ip_address: str = None):
+    """Log eventos de seguridad críticos"""
+    logger.critical(
+        f"SECURITY_EVENT: {event_type} | User: {user_id} | Details: {details}",
+        extra={
+            "event_type": event_type,
+            "user_id": user_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "severity": "CRITICAL",
+            "ip_address": ip_address
+        }
+    )

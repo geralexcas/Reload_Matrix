@@ -16,7 +16,7 @@ from app.core import security
 from app.core.config import settings
 from app.services import accounting_service
 from app.services import dian_billing_range_service as dbr_service
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import get_current_user, verify_company_membership
 
 router = APIRouter()
 
@@ -85,6 +85,7 @@ def create_company(
 def upload_company_logo(
     company_id: int,
     file: UploadFile = File(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
 ):
     db_company = (
@@ -156,6 +157,7 @@ def read_company(company_id: int, db: Session = Depends(get_db)):
 def update_company(
     company_id: int,
     company: company_schema.CompanyBase,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -185,6 +187,7 @@ def update_company(
 def create_billing_range(
     company_id: int,
     range_data: db_schema.DianBillingRangeCreate,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -207,6 +210,7 @@ def create_billing_range(
 def list_billing_ranges(
     company_id: int,
     active: bool = False,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -220,6 +224,7 @@ def list_billing_ranges(
 def get_next_billing_number(
     company_id: int,
     prefix: str,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -237,6 +242,7 @@ def get_next_billing_number(
 def consume_billing_number(
     company_id: int,
     range_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):

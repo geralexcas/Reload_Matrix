@@ -46,6 +46,7 @@ def create_invoice(
 def create_invoice_with_items(
     invoice_with_items: inv_schema.InvoiceWithItemsCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -69,6 +70,7 @@ def read_invoices(
     company_id: int,
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -88,6 +90,7 @@ def read_invoices(
 def read_invoice(
     invoice_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -111,6 +114,7 @@ def update_invoice(
     invoice_id: int,
     invoice: inv_schema.InvoiceCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -133,6 +137,7 @@ def update_invoice(
 def delete_invoice(
     invoice_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -155,6 +160,7 @@ def delete_invoice(
 def cancel_invoice(
     invoice_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -189,6 +195,7 @@ def cancel_invoice(
 def create_credit_debit_note(
     note_data: inv_schema.CreditDebitNoteCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -215,6 +222,7 @@ def list_credit_debit_notes(
     company_id: int,
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -236,6 +244,7 @@ def list_credit_debit_notes(
 def get_credit_debit_note(
     note_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -261,6 +270,7 @@ def get_credit_debit_note(
 def get_notes_by_invoice(
     invoice_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -280,6 +290,7 @@ def get_notes_by_invoice(
 def generate_note_xml(
     note_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -303,6 +314,7 @@ def generate_note_xml(
 def send_note_to_dian(
     note_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):

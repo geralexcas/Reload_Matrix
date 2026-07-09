@@ -145,7 +145,18 @@ class PurchaseService:
         )
 
         self.db.add(db_purchase)
-        self.db.flush()
+        
+        from sqlalchemy.exc import IntegrityError
+        try:
+            self.db.flush()
+        except IntegrityError as e:
+            self.db.rollback()
+            if 'uq_purchase_number_company' in str(e):
+                raise ValueError(
+                    f"Ya existe una compra con el número {purchase_data.purchase_number}. "
+                    f"Si está intentando reintentar una operación fallida, use otro número."
+                )
+            raise
 
         # Create purchase items
         for item, values in calculated_items:

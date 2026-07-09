@@ -78,6 +78,14 @@ class AccountingService:
     def create_journal_entry(
         self, je: co_schema.JournalEntryCreate, company_id: int
     ) -> JournalEntry:
+        if je.reference:
+            existing = self.db.query(JournalEntry).filter(
+                JournalEntry.company_id == company_id,
+                JournalEntry.reference == je.reference
+            ).first()
+            if existing:
+                raise ValueError(f"Ya existe un asiento con la referencia '{je.reference}'")
+
         db_je = JournalEntry(**je.model_dump(), company_id=company_id)
         self.db.add(db_je)
         self.db.commit()
@@ -94,6 +102,14 @@ class AccountingService:
             raise ValueError(
                 f"Journal entry must be balanced (debits={total_debits} != credits={total_credits})"
             )
+
+        if je_with_lines.reference:
+            existing = self.db.query(JournalEntry).filter(
+                JournalEntry.company_id == company_id,
+                JournalEntry.reference == je_with_lines.reference
+            ).first()
+            if existing:
+                raise ValueError(f"Ya existe un asiento con la referencia '{je_with_lines.reference}'")
 
         # Create the journal entry
         # Verify entry date falls within an open fiscal period
@@ -291,202 +307,206 @@ class AccountingService:
         }
 
     def post_journal_entry(self, je_id: int, company_id: int) -> Dict[str, Any]:
-        db_je = self.db.query(JournalEntry).filter(JournalEntry.id == je_id, JournalEntry.company_id == company_id).with_for_update().first()
-        if not db_je:
-            raise ValueError("Journal entry not found")
-        if db_je.is_posted:
-            raise ValueError("Journal entry is already posted and cannot be posted again")
+        try:
+            db_je = self.db.query(JournalEntry).filter(JournalEntry.id == je_id, JournalEntry.company_id == company_id).with_for_update().first()
+            if not db_je:
+                raise ValueError("Journal entry not found")
+            if db_je.is_posted:
+                raise ValueError("Journal entry is already posted and cannot be posted again")
 
-        # Verify entry date falls within an open fiscal period
-        fp = (
-            self.db.query(FiscalPeriod)
-            .filter(
-                FiscalPeriod.company_id == company_id,
-                FiscalPeriod.start_date <= db_je.entry_date,
-                FiscalPeriod.end_date >= db_je.entry_date,
+            # Verify entry date falls within an open fiscal period
+            fp = (
+                self.db.query(FiscalPeriod)
+                .filter(
+                    FiscalPeriod.company_id == company_id,
+                    FiscalPeriod.start_date <= db_je.entry_date,
+                    FiscalPeriod.end_date >= db_je.entry_date,
+                )
+                .first()
             )
-            .first()
-        )
-        # If company has any fiscal periods defined, require entry date to fall within an OPEN period
-        any_periods = self.db.query(FiscalPeriod).filter(FiscalPeriod.company_id == company_id).first()
-        if any_periods is not None:
-            if fp is None:
-                raise ValueError("No fiscal period defined for the entry date")
-            if fp.is_closed:
+            # If company has any fiscal periods defined, require entry date to fall within an OPEN period
+            any_periods = self.db.query(FiscalPeriod).filter(FiscalPeriod.company_id == company_id).first()
+            if any_periods is not None:
+                if fp is None:
+                    raise ValueError("No fiscal period defined for the entry date")
+                if fp.is_closed:
+                    raise ValueError("Fiscal period is closed for the entry date")
+            elif fp is not None and fp.is_closed:
                 raise ValueError("Fiscal period is closed for the entry date")
-        elif fp is not None and fp.is_closed:
-            raise ValueError("Fiscal period is closed for the entry date")
 
-        lines = (
-            self.db.query(JournalEntryLine)
-            .filter(JournalEntryLine.journal_entry_id == je_id)
-            .all()
-        )
-
-        sum_debits = sum((line.debit_amount for line in lines), Decimal("0.00"))
-        sum_credits = sum((line.credit_amount for line in lines), Decimal("0.00"))
-
-        if sum_debits != sum_credits:
-            raise ValueError("Journal entry must be balanced (debits = credits)")
-
-        db_je.is_posted = True
-
-        from app.models.sql.accounting.bank_account import BankAccount
-        from app.models.sql.accounting.cash_account import CashAccount
-        from app.models.sql.accounting.treasury_transaction import TreasuryTransaction
-
-        treasury_sync_count = 0
-
-        for line in lines:
-            if not line.account_id:
-                continue
-
-            line_coa = (
-                self.db.query(ChartOfAccounts)
-                .filter(ChartOfAccounts.id == line.account_id)
-                .first()
-            )
-            if not line_coa:
-                continue
-
-            line_code = line_coa.code
-
-            bank_acct = (
-                self.db.query(BankAccount)
-                .filter(
-                    BankAccount.linked_account_id == line.account_id,
-                    BankAccount.company_id == company_id,
-                    BankAccount.is_active == True,
-                )
-                .with_for_update()
-                .first()
+            lines = (
+                self.db.query(JournalEntryLine)
+                .filter(JournalEntryLine.journal_entry_id == je_id)
+                .all()
             )
 
-            if not bank_acct:
-                # Try to find a bank account whose linked COA code matches the line code exactly
-                all_bank_accts = (
-                    self.db.query(BankAccount)
-                    .filter(
-                        BankAccount.company_id == company_id,
-                        BankAccount.is_active == True,
-                        BankAccount.linked_account_id != None,
-                    )
-                    .all()
-                )
-                for candidate in all_bank_accts:
-                    if candidate.linked_account_id:
-                        candidate_coa = (
-                            self.db.query(ChartOfAccounts)
-                            .filter(ChartOfAccounts.id == candidate.linked_account_id)
-                            .first()
-                        )
-                        if candidate_coa:
-                            c_code = candidate_coa.code
-                            if line_code.startswith(c_code) or c_code.startswith(line_code):
-                                bank_acct = candidate
-                                break
+            sum_debits = sum((line.debit_amount for line in lines), Decimal("0.00"))
+            sum_credits = sum((line.credit_amount for line in lines), Decimal("0.00"))
 
-            if bank_acct:
-                net_change = line.debit_amount - line.credit_amount
-                bank_acct.current_balance += net_change
-                if net_change != Decimal("0.00"):
-                    tx_type = "DEPOSIT" if net_change > 0 else "WITHDRAWAL"
-                    tx = TreasuryTransaction(
-                        company_id=company_id,
-                        account_type="BANK",
-                        bank_account_id=bank_acct.id,
-                        cash_account_id=None,
-                        transaction_type=tx_type,
-                        amount=abs(net_change),
-                        description=line.description or db_je.description,
-                        reference=db_je.reference or f"JE-{je_id}",
-                        journal_entry_id=db_je.id,
-                        balance_after=bank_acct.current_balance,
-                    )
-                    self.db.add(tx)
-                    treasury_sync_count += 1
-                continue
+            if sum_debits != sum_credits:
+                raise ValueError("Journal entry must be balanced (debits = credits)")
 
-            cash_acct = (
-                self.db.query(CashAccount)
-                .filter(
-                    CashAccount.linked_account_id == line.account_id,
-                    CashAccount.company_id == company_id,
-                    CashAccount.is_active == True,
-                )
-                .with_for_update()
-                .first()
-            )
+            db_je.is_posted = True
 
-            if not cash_acct:
-                # Attempt to find a cash account with a linked COA that matches the line code exactly
-                all_cash_accts = (
-                    self.db.query(CashAccount)
-                    .filter(
-                        CashAccount.company_id == company_id,
-                        CashAccount.is_active == True,
-                        CashAccount.linked_account_id != None,
-                    )
-                    .all()
-                )
-                for candidate in all_cash_accts:
-                    if candidate.linked_account_id:
-                        candidate_coa = (
-                            self.db.query(ChartOfAccounts)
-                            .filter(ChartOfAccounts.id == candidate.linked_account_id)
-                            .first()
-                        )
-                        if candidate_coa:
-                            c_code = candidate_coa.code
-                            if line_code.startswith(c_code) or c_code.startswith(line_code):
-                                cash_acct = candidate
-                                break
-                if not cash_acct:
+            from app.models.sql.accounting.bank_account import BankAccount
+            from app.models.sql.accounting.cash_account import CashAccount
+            from app.models.sql.accounting.treasury_transaction import TreasuryTransaction
+
+            treasury_sync_count = 0
+
+            for line in lines:
+                if not line.account_id:
                     continue
 
-            if cash_acct:
-                net_change = line.debit_amount - line.credit_amount
-                cash_acct.current_balance += net_change
-                if net_change != Decimal("0.00"):
-                    tx_type = "DEPOSIT" if net_change > 0 else "WITHDRAWAL"
-                    tx = TreasuryTransaction(
-                        company_id=company_id,
-                        account_type="CASH",
-                        bank_account_id=None,
-                        cash_account_id=cash_acct.id,
-                        transaction_type=tx_type,
-                        amount=abs(net_change),
-                        description=line.description or db_je.description,
-                        reference=db_je.reference or f"JE-{je_id}",
-                        journal_entry_id=db_je.id,
-                        balance_after=cash_acct.current_balance,
+                line_coa = (
+                    self.db.query(ChartOfAccounts)
+                    .filter(ChartOfAccounts.id == line.account_id)
+                    .first()
+                )
+                if not line_coa:
+                    continue
+
+                line_code = line_coa.code
+
+                bank_acct = (
+                    self.db.query(BankAccount)
+                    .filter(
+                        BankAccount.linked_account_id == line.account_id,
+                        BankAccount.company_id == company_id,
+                        BankAccount.is_active == True,
                     )
-                    self.db.add(tx)
-                    treasury_sync_count += 1
+                    .with_for_update()
+                    .first()
+                )
 
-        self.db.commit()
-        self.db.refresh(db_je)
+                if not bank_acct:
+                    # Try to find a bank account whose linked COA code matches the line code exactly
+                    all_bank_accts = (
+                        self.db.query(BankAccount)
+                        .filter(
+                            BankAccount.company_id == company_id,
+                            BankAccount.is_active == True,
+                            BankAccount.linked_account_id != None,
+                        )
+                        .all()
+                    )
+                    for candidate in all_bank_accts:
+                        if candidate.linked_account_id:
+                            candidate_coa = (
+                                self.db.query(ChartOfAccounts)
+                                .filter(ChartOfAccounts.id == candidate.linked_account_id)
+                                .first()
+                            )
+                            if candidate_coa:
+                                c_code = candidate_coa.code
+                                if line_code.startswith(c_code) or c_code.startswith(line_code):
+                                    bank_acct = candidate
+                                    break
 
-        warning = None
-        if treasury_sync_count == 0:
-            warning = (
-                "Asiento publicado, pero ninguna línea afecta cuentas de tesorería. "
-                "Verifique que las cuentas bancarias/caja tengan configurado el campo "
-                "'Cuenta contable vinculada' (linked_account_id) en el módulo de Tesorería."
-            )
+                if bank_acct:
+                    net_change = line.debit_amount - line.credit_amount
+                    bank_acct.current_balance += net_change
+                    if net_change != Decimal("0.00"):
+                        tx_type = "DEPOSIT" if net_change > 0 else "WITHDRAWAL"
+                        tx = TreasuryTransaction(
+                            company_id=company_id,
+                            account_type="BANK",
+                            bank_account_id=bank_acct.id,
+                            cash_account_id=None,
+                            transaction_type=tx_type,
+                            amount=abs(net_change),
+                            description=line.description or db_je.description,
+                            reference=db_je.reference or f"JE-{je_id}",
+                            journal_entry_id=db_je.id,
+                            balance_after=bank_acct.current_balance,
+                        )
+                        self.db.add(tx)
+                        treasury_sync_count += 1
+                    continue
 
-        return {
-            "id": db_je.id,
-            "company_id": db_je.company_id,
-            "entry_date": db_je.entry_date,
-            "description": db_je.description,
-            "reference": db_je.reference,
-            "is_posted": db_je.is_posted,
-            "created_at": db_je.created_at,
-            "updated_at": db_je.updated_at,
-            "treasury_sync_count": treasury_sync_count,
-            "warning": warning,
-        }
+                cash_acct = (
+                    self.db.query(CashAccount)
+                    .filter(
+                        CashAccount.linked_account_id == line.account_id,
+                        CashAccount.company_id == company_id,
+                        CashAccount.is_active == True,
+                    )
+                    .with_for_update()
+                    .first()
+                )
+
+                if not cash_acct:
+                    # Attempt to find a cash account with a linked COA that matches the line code exactly
+                    all_cash_accts = (
+                        self.db.query(CashAccount)
+                        .filter(
+                            CashAccount.company_id == company_id,
+                            CashAccount.is_active == True,
+                            CashAccount.linked_account_id != None,
+                        )
+                        .all()
+                    )
+                    for candidate in all_cash_accts:
+                        if candidate.linked_account_id:
+                            candidate_coa = (
+                                self.db.query(ChartOfAccounts)
+                                .filter(ChartOfAccounts.id == candidate.linked_account_id)
+                                .first()
+                            )
+                            if candidate_coa:
+                                c_code = candidate_coa.code
+                                if line_code.startswith(c_code) or c_code.startswith(line_code):
+                                    cash_acct = candidate
+                                    break
+                    if not cash_acct:
+                        continue
+
+                if cash_acct:
+                    net_change = line.debit_amount - line.credit_amount
+                    cash_acct.current_balance += net_change
+                    if net_change != Decimal("0.00"):
+                        tx_type = "DEPOSIT" if net_change > 0 else "WITHDRAWAL"
+                        tx = TreasuryTransaction(
+                            company_id=company_id,
+                            account_type="CASH",
+                            bank_account_id=None,
+                            cash_account_id=cash_acct.id,
+                            transaction_type=tx_type,
+                            amount=abs(net_change),
+                            description=line.description or db_je.description,
+                            reference=db_je.reference or f"JE-{je_id}",
+                            journal_entry_id=db_je.id,
+                            balance_after=cash_acct.current_balance,
+                        )
+                        self.db.add(tx)
+                        treasury_sync_count += 1
+
+            self.db.commit()
+            self.db.refresh(db_je)
+
+            warning = None
+            if treasury_sync_count == 0:
+                warning = (
+                    "Asiento publicado, pero ninguna línea afecta cuentas de tesorería. "
+                    "Verifique que las cuentas bancarias/caja tengan configurado el campo "
+                    "'Cuenta contable vinculada' (linked_account_id) en el módulo de Tesorería."
+                )
+
+            return {
+                "id": db_je.id,
+                "company_id": db_je.company_id,
+                "entry_date": db_je.entry_date,
+                "description": db_je.description,
+                "reference": db_je.reference,
+                "is_posted": db_je.is_posted,
+                "created_at": db_je.created_at,
+                "updated_at": db_je.updated_at,
+                "treasury_sync_count": treasury_sync_count,
+                "warning": warning,
+            }
+        except Exception as e:
+            self.db.rollback()
+            raise ValueError(f"Error posting journal entry: {str(e)}")
 
     def get_trial_balance(
         self,
@@ -830,9 +850,11 @@ class AccountingService:
 
             if inv.partner and inv.partner.responsibility_fiscal == "AGENTE RETENEDOR":
                 if taxes["iva_19"] > 0 or taxes["iva_5"] > 0:
-                    retencion_fuente = (
-                        taxes["base_iva_19"] + taxes["base_iva_5"]
-                    ) * Decimal("0.025")
+                    base_gravable = taxes["base_iva_19"] + taxes["base_iva_5"]
+                    from app.core.config import settings
+                    uvt_daily_threshold = Decimal(str(settings.UVT_VALUE * 27))
+                    if base_gravable >= uvt_daily_threshold:
+                        retencion_fuente = base_gravable * Decimal("0.025")
                     retencion_iva = taxes["total_iva"] * Decimal("0.15")
 
             total_invoice = (
@@ -990,9 +1012,11 @@ class AccountingService:
 
             if company.regimen in ("COMUN", "ESPECIAL"):
                 if taxes["iva_19"] > 0 or taxes["iva_5"] > 0:
-                    retencion_fuente = (
-                        taxes["base_iva_19"] + taxes["base_iva_5"]
-                    ) * Decimal("0.025")
+                    base_gravable = taxes["base_iva_19"] + taxes["base_iva_5"]
+                    from app.core.config import settings
+                    uvt_daily_threshold = Decimal(str(settings.UVT_VALUE * 27))
+                    if base_gravable >= uvt_daily_threshold:
+                        retencion_fuente = base_gravable * Decimal("0.025")
                     retencion_iva = taxes["total_iva"] * Decimal("0.15")
 
             total_invoice = (
@@ -1141,41 +1165,73 @@ class AccountingService:
         sales_book = self.get_libro_ventas(company_id, date_from, date_to)
         purchases_book = self.get_libro_compras(company_id, date_from, date_to)
 
+        from app.models.sql.credit_debit_notes import CreditDebitNote
+        from app.models.sql.invoicing import Invoice
+
+        # Fetch credit notes for the period
+        credit_notes_query = (
+            self.db.query(CreditDebitNote)
+            .join(Invoice, CreditDebitNote.original_invoice_id == Invoice.id)
+            .filter(
+                CreditDebitNote.company_id == company_id,
+                CreditDebitNote.note_type == "CREDIT",
+            )
+        )
+        if date_from:
+            credit_notes_query = credit_notes_query.filter(CreditDebitNote.created_at >= date_from)
+        if date_to:
+            credit_notes_query = credit_notes_query.filter(CreditDebitNote.created_at <= date_to)
+        
+        credit_notes = credit_notes_query.all()
+
+        dev_ventas_iva_19 = Decimal("0.00")
+        dev_ventas_iva_5 = Decimal("0.00")
+        dev_compras_iva_19 = Decimal("0.00")
+        dev_compras_iva_5 = Decimal("0.00")
+
+        for cn in credit_notes:
+            inv = cn.original_invoice
+            taxes = self._get_invoice_tax_breakdown(inv)
+            if taxes["total_iva"] > 0 and inv.total_amount > 0:
+                # Calculate proportion of the return
+                ratio = Decimal(str(cn.amount)) / inv.total_amount
+                iva_19_rev = taxes["iva_19"] * ratio
+                iva_5_rev = taxes["iva_5"] * ratio
+                
+                if inv.invoice_type == "SALE":
+                    dev_ventas_iva_19 += iva_19_rev
+                    dev_ventas_iva_5 += iva_5_rev
+                elif inv.invoice_type == "PURCHASE":
+                    dev_compras_iva_19 += iva_19_rev
+                    dev_compras_iva_5 += iva_5_rev
+
         iva_generado = [
             {
                 "concept": "IVA 19% generado (ventas)",
                 "base": sales_book["totals"].get("total_base_iva_19", Decimal("0.00")),
-                "tax_amount": sales_book["totals"].get("total_iva_19", Decimal("0.00")),
+                "tax_amount": sales_book["totals"].get("total_iva_19", Decimal("0.00")) - dev_ventas_iva_19,
             },
             {
                 "concept": "IVA 5% generado (ventas)",
                 "base": sales_book["totals"].get("total_base_iva_5", Decimal("0.00")),
-                "tax_amount": sales_book["totals"].get("total_iva_5", Decimal("0.00")),
+                "tax_amount": sales_book["totals"].get("total_iva_5", Decimal("0.00")) - dev_ventas_iva_5,
             },
         ]
-        total_iva_generado = sales_book["totals"].get("total_iva", Decimal("0.00"))
+        total_iva_generado = sum(item["tax_amount"] for item in iva_generado)
 
         iva_soportado = [
             {
                 "concept": "IVA 19% soportado (compras)",
-                "base": purchases_book["totals"].get(
-                    "total_base_iva_19", Decimal("0.00")
-                ),
-                "tax_amount": purchases_book["totals"].get(
-                    "total_iva_19", Decimal("0.00")
-                ),
+                "base": purchases_book["totals"].get("total_base_iva_19", Decimal("0.00")),
+                "tax_amount": purchases_book["totals"].get("total_iva_19", Decimal("0.00")) - dev_compras_iva_19,
             },
             {
                 "concept": "IVA 5% soportado (compras)",
-                "base": purchases_book["totals"].get(
-                    "total_base_iva_5", Decimal("0.00")
-                ),
-                "tax_amount": purchases_book["totals"].get(
-                    "total_iva_5", Decimal("0.00")
-                ),
+                "base": purchases_book["totals"].get("total_base_iva_5", Decimal("0.00")),
+                "tax_amount": purchases_book["totals"].get("total_iva_5", Decimal("0.00")) - dev_compras_iva_5,
             },
         ]
-        total_iva_soportado = purchases_book["totals"].get("total_iva", Decimal("0.00"))
+        total_iva_soportado = sum(item["tax_amount"] for item in iva_soportado)
 
         diferencia = total_iva_generado - total_iva_soportado
         iva_a_pagar = diferencia if diferencia > 0 else Decimal("0.00")
@@ -1274,28 +1330,9 @@ class AccountingService:
             partner_nit = inv.partner.nit if inv.partner else None
 
             if is_purchase and company.regimen in ("COMUN", "ESPECIAL"):
-                exceeds_uvt = base_gravable > uvt_daily_threshold
+                exceeds_uvt = base_gravable >= uvt_daily_threshold
 
                 if base_gravable > 0 and exceeds_uvt:
-                    retefuente_bienes = base_gravable * Decimal("0.10")
-                    total_retefuente_bienes += retefuente_bienes
-                    entries.append(
-                        {
-                            "invoice_id": inv.id,
-                            "invoice_number": inv.invoice_number,
-                            "invoice_date": inv.issue_date,
-                            "partner_nit": partner_nit,
-                            "partner_name": partner_name,
-                            "concept": "Retefuente bienes 10%",
-                            "base_retencion": base_gravable,
-                            "tarifa": Decimal("0.10"),
-                            "valor_retencion": retefuente_bienes,
-                            "invoice_type": "COMPRA",
-                        }
-                    )
-                    total_retefuente += retefuente_bienes
-
-                if base_gravable > 0 and not exceeds_uvt:
                     retefuente = base_gravable * Decimal("0.025")
                     total_retefuente_servicios += retefuente
                     entries.append(
@@ -1305,7 +1342,7 @@ class AccountingService:
                             "invoice_date": inv.issue_date,
                             "partner_nit": partner_nit,
                             "partner_name": partner_name,
-                            "concept": "Retefuente servicios 2.5%",
+                            "concept": "Retefuente 2.5%",
                             "base_retencion": base_gravable,
                             "tarifa": Decimal("0.025"),
                             "valor_retencion": retefuente,
@@ -1337,7 +1374,8 @@ class AccountingService:
                 and inv.partner
                 and inv.partner.responsibility_fiscal == "AGENTE RETENEDOR"
             ):
-                if base_gravable > 0:
+                exceeds_uvt = base_gravable >= uvt_daily_threshold
+                if base_gravable > 0 and exceeds_uvt:
                     retefuente = base_gravable * Decimal("0.025")
                     entries.append(
                         {
@@ -2309,8 +2347,13 @@ class AccountingService:
         sales_revenue = self._get_account_by_code(company_id, "4100")
         tax_liability = self._get_account_by_code(company_id, "2130")
 
-        if not accounts_receivable or not sales_revenue:
-            raise ValueError("Required chart of accounts not found")
+        missing_accounts = []
+        if not accounts_receivable: missing_accounts.append("1130 (Cuentas por cobrar)")
+        if not sales_revenue: missing_accounts.append("4100 (Ingresos por ventas)")
+        if not is_simple_regime and not tax_liability: missing_accounts.append("2130 (Obligaciones fiscales/IVA)")
+
+        if missing_accounts:
+            raise ValueError(f"Faltan cuentas contables requeridas para registrar la factura de venta: {', '.join(missing_accounts)}. Configúrelas en el Plan de Cuentas.")
 
         # Create journal entry
         entry_date = datetime.now(timezone.utc)
@@ -2514,8 +2557,12 @@ class AccountingService:
         cost_of_sales = self._get_account_by_code(company_id, "5100")
         inventory = self._get_account_by_code(company_id, "1140")
 
-        if not cost_of_sales or not inventory:
-            return None
+        missing_accounts = []
+        if not cost_of_sales: missing_accounts.append("5100 (Costo de ventas)")
+        if not inventory: missing_accounts.append("1140 (Inventarios)")
+
+        if missing_accounts:
+            raise ValueError(f"Faltan cuentas contables requeridas para registrar garantía: {', '.join(missing_accounts)}. Configúrelas en el Plan de Cuentas.")
 
         entry_date = datetime.now(timezone.utc)
         description = f"Garantía aplicada - Orden #{invoice_id}"
@@ -2574,8 +2621,12 @@ class AccountingService:
         cost_of_sales = self._get_account_by_code(company_id, "5100")
         inventory = self._get_account_by_code(company_id, "1140")
 
-        if not cost_of_sales or not inventory:
-            return None
+        missing_accounts = []
+        if not cost_of_sales: missing_accounts.append("5100 (Costo de ventas)")
+        if not inventory: missing_accounts.append("1140 (Inventarios)")
+
+        if missing_accounts:
+            raise ValueError(f"Faltan cuentas contables requeridas para registrar uso de inventario: {', '.join(missing_accounts)}. Configúrelas en el Plan de Cuentas.")
 
         total_cost = quantity * unit_cost
         entry_date = datetime.now(timezone.utc)
@@ -2828,8 +2879,15 @@ class AccountingService:
         cash = self._get_account_by_code(company_id, "111001")
         bank = self._get_account_by_code(company_id, "111010")
 
-        if not inventory or not accounts_payable:
-            raise ValueError("Required chart of accounts not found for purchases")
+        missing_accounts = []
+        if not inventory: missing_accounts.append("1140 (Inventarios)")
+        if not is_simple_regime and not tax_receivable: missing_accounts.append("2408 (IVA soportado)")
+        if not accounts_payable: missing_accounts.append("2205 (Cuentas por pagar)")
+        if not cash: missing_accounts.append("111001 (Caja)")
+        if not bank: missing_accounts.append("111010 (Bancos)")
+
+        if missing_accounts:
+            raise ValueError(f"Faltan cuentas contables requeridas para registrar compras: {', '.join(missing_accounts)}. Configúrelas en el Plan de Cuentas.")
 
         entry_date = datetime.now(timezone.utc)
         description = f"Compra a proveedor - Factura #{purchase_id}"
@@ -2970,8 +3028,14 @@ class AccountingService:
         cash = self._get_account_by_code(company_id, "111001")
         bank = self._get_account_by_code(company_id, "111010")
 
-        if not inventory:
-            raise ValueError("Required inventory account (1140) not found")
+        missing_accounts = []
+        if not inventory: missing_accounts.append("1140 (Inventarios)")
+        if not accounts_payable: missing_accounts.append("2205 (Cuentas por pagar)")
+        if not cash: missing_accounts.append("111001 (Caja)")
+        if not bank: missing_accounts.append("111010 (Bancos)")
+
+        if missing_accounts:
+            raise ValueError(f"Faltan cuentas contables requeridas para registrar inventario inicial: {', '.join(missing_accounts)}. Configúrelas en el Plan de Cuentas.")
 
         entry_date = datetime.now(timezone.utc)
         description = f"Stock inicial producto - {product_name} (ID: {product_id})"
@@ -2982,7 +3046,7 @@ class AccountingService:
             description=description,
             reference=reference,
             company_id=company_id,
-            is_posted=True,
+            is_posted=False,
         )
         self.db.add(db_je)
         self.db.flush()
@@ -3022,6 +3086,9 @@ class AccountingService:
 
         self.db.flush()
         self._validate_journal_entry_balance(db_je.id)
-        self.db.commit()
+        
+        # Post the journal entry so treasury synchronization is triggered automatically
+        self.post_journal_entry(je_id=db_je.id, company_id=company_id)
+        
         self.db.refresh(db_je)
         return db_je

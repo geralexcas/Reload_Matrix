@@ -8,7 +8,7 @@ from app.models.sql import partners as partner_model
 from app.schemas import partners as partner_schema
 from app.services import partner_service
 from app.core.database import get_db
-from app.api.v1.deps import get_current_active_user
+from app.api.v1.deps import get_current_active_user, verify_company_membership
 
 router = APIRouter()
 
@@ -22,6 +22,7 @@ router = APIRouter()
 def create_partner(
     partner: partner_schema.PartnerCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -49,6 +50,7 @@ def read_partners(
     company_id: int,
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -72,6 +74,7 @@ def read_partners(
 def read_partner(
     partner_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -99,6 +102,7 @@ def update_partner(
     partner_id: int,
     partner: partner_schema.PartnerCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -125,6 +129,7 @@ def update_partner(
 def delete_partner(
     partner_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):

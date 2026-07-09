@@ -13,7 +13,7 @@ from app.schemas import repair as rep_schema
 from app.schemas.payment import POSPayment
 from app.services import repair_service
 from app.core.database import get_db
-from app.api.v1.deps import get_current_active_user
+from app.api.v1.deps import get_current_active_user, verify_company_membership
 
 router = APIRouter()
 
@@ -27,6 +27,7 @@ router = APIRouter()
 def create_repair_order(
     repair_order: rep_schema.RepairOrderCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -59,6 +60,7 @@ def create_repair_order(
 def create_repair_order_simple(
     repair_order: rep_schema.RepairOrderSimpleCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -85,6 +87,7 @@ def create_repair_order_simple(
 def create_repair_order_with_items(
     repair_order_with_items: rep_schema.RepairOrderWithItemsCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -109,6 +112,7 @@ def read_repair_orders(
     company_id: int,
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -134,6 +138,7 @@ def read_repair_orders(
 def read_repair_order(
     repair_order_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -161,6 +166,7 @@ def update_repair_order(
     repair_order_id: int,
     repair_order: rep_schema.RepairOrderUpdate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -190,6 +196,7 @@ def create_repair_item(
     repair_order_id: int,
     item: rep_schema.RepairItemCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -216,6 +223,7 @@ def delete_repair_item(
     repair_order_id: int,
     item_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -240,6 +248,7 @@ def delete_repair_item(
 def delete_repair_order(
     repair_order_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -265,6 +274,7 @@ def delete_repair_order(
 def cancel_repair_order(
     repair_order_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -298,6 +308,7 @@ def cancel_repair_order(
 def apply_warranty_to_repair_order(
     repair_order_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -327,6 +338,7 @@ def apply_warranty_to_repair_order(
 def create_warranty(
     warranty: rep_schema.WarrantyCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -354,6 +366,7 @@ def read_warranties(
     skip: int = 0,
     limit: int = 100,
     status_filter: Optional[str] = None,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -378,6 +391,7 @@ def read_warranties(
 def read_warranty(
     warranty_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -406,6 +420,7 @@ def read_warranty(
 def read_warranties_by_repair_order(
     repair_order_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -432,6 +447,7 @@ def update_warranty_status(
     warranty_id: int,
     new_status: str,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -466,6 +482,7 @@ def file_warranty_claim(
     warranty_id: int,
     claim: rep_schema.WarrantyClaim,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -493,6 +510,7 @@ def file_warranty_claim(
 )
 def check_expired_warranties(
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -515,6 +533,7 @@ def check_expired_warranties(
 def delete_warranty(
     warranty_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -545,6 +564,7 @@ def generate_invoice_from_repair_order(
     repair_order_id: int,
     company_id: int,
     payment_data: Optional[POSPayment] = None,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -581,6 +601,7 @@ def generate_invoice_from_repair_order(
 def create_technician(
     technician: rep_schema.TechnicianCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -605,6 +626,7 @@ def read_technicians(
     company_id: int,
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -630,6 +652,7 @@ def read_technicians(
 def read_technician(
     technician_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -659,6 +682,7 @@ def update_technician(
     technician_id: int,
     technician: rep_schema.TechnicianCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -685,6 +709,7 @@ def update_technician(
 def delete_technician(
     technician_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):

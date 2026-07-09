@@ -41,15 +41,14 @@ class WalletService:
             .all()
         )
 
-    def get_wallet_by_id(self, wallet_id: int, company_id: int) -> Optional[Wallet]:
-        return (
-            self.db.query(Wallet)
-            .filter(
-                Wallet.id == wallet_id,
-                Wallet.company_id == company_id,
-            )
-            .first()
+    def get_wallet_by_id(self, wallet_id: int, company_id: int, lock: bool = False) -> Optional[Wallet]:
+        query = self.db.query(Wallet).filter(
+            Wallet.id == wallet_id,
+            Wallet.company_id == company_id,
         )
+        if lock:
+            query = query.with_for_update()
+        return query.first()
 
     def get_wallet_by_partner(
         self, partner_id: int, company_id: int
@@ -68,7 +67,7 @@ class WalletService:
         self, wallet_id: int, amount: Decimal, description: str, company_id: int, user_id: Optional[int] = None,
         account_type: Optional[str] = None, account_id: Optional[int] = None, commit: bool = True
     ) -> WalletTransaction:
-        wallet = self.get_wallet_by_id(wallet_id, company_id)
+        wallet = self.get_wallet_by_id(wallet_id, company_id, lock=True)
         if not wallet:
             raise ValueError("Wallet not found")
 
@@ -171,12 +170,12 @@ class WalletService:
         self, wallet_id: int, amount: Decimal, description: str, company_id: int, user_id: Optional[int] = None,
         account_type: Optional[str] = None, account_id: Optional[int] = None, commit: bool = True
     ) -> WalletTransaction:
-        wallet = self.get_wallet_by_id(wallet_id, company_id)
+        wallet = self.get_wallet_by_id(wallet_id, company_id, lock=True)
         if not wallet:
             raise ValueError("Wallet not found")
 
         if wallet.balance < amount:
-            raise ValueError("Insufficient balance")
+            raise ValueError(f"Saldo insuficiente en el monedero. Disponible: ${wallet.balance:,.2f}, Solicitado: ${amount:,.2f}")
 
         wallet.balance -= amount
         tx = WalletTransaction(
@@ -296,7 +295,7 @@ class WalletService:
         Agrega puntos de lealtad al monedero.
         Regla: 1 punto por cada $10,000 COP gastados (configurable).
         """
-        wallet = self.get_wallet_by_id(wallet_id, company_id)
+        wallet = self.get_wallet_by_id(wallet_id, company_id, lock=True)
         if not wallet:
             raise ValueError("Wallet not found")
 
@@ -312,7 +311,7 @@ class WalletService:
         Canjea puntos de lealtad por saldo.
         Regla: 100 puntos = $1,000 COP (configurable).
         """
-        wallet = self.get_wallet_by_id(wallet_id, company_id)
+        wallet = self.get_wallet_by_id(wallet_id, company_id, lock=True)
         if not wallet:
             raise ValueError("Wallet not found")
 

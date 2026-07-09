@@ -8,7 +8,7 @@ from app.models.sql import user as user_model
 from app.schemas import wallet as wallet_schema
 from app.services import wallet_service
 from app.core.database import get_db
-from app.api.v1.deps import get_current_active_user
+from app.api.v1.deps import get_current_active_user, verify_company_membership
 
 router = APIRouter()
 
@@ -21,6 +21,7 @@ router = APIRouter()
 def create_wallet(
     wallet: wallet_schema.WalletCreate,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -41,6 +42,7 @@ def read_wallets(
     company_id: int,
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -60,6 +62,7 @@ def read_wallets(
 def read_wallet(
     wallet_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -90,6 +93,7 @@ def deposit_to_wallet(
     company_id: int,
     account_type: Optional[str] = None,
     account_id: Optional[int] = None,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -120,6 +124,7 @@ def withdraw_from_wallet(
     company_id: int,
     account_type: Optional[str] = None,
     account_id: Optional[int] = None,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -147,6 +152,7 @@ def read_wallet_transactions(
     company_id: int,
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -171,6 +177,7 @@ def add_loyalty_points(
     points: float,
     company_id: int,
     description: str = "",
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -200,6 +207,7 @@ def redeem_loyalty_points(
     wallet_id: int,
     points: float,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -228,6 +236,7 @@ def redeem_loyalty_points(
 def get_loyalty_summary(
     wallet_id: int,
     company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):

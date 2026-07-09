@@ -7,7 +7,7 @@ from app.models.sql import company as company_model, user as user_model
 from app.schemas import purchase as purchase_schema
 from app.services import purchase_service
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import get_current_user, verify_company_membership
 
 router = APIRouter()
 
@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 def create_purchase(
     purchase: purchase_schema.PurchaseWithItemsCreate,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -87,6 +88,7 @@ def get_purchases(
     limit: int = 100,
     status: Optional[str] = None,
     partner_id: Optional[int] = None,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -103,6 +105,7 @@ def get_purchase_statistics(
     company_id: int = Query(...),
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -116,6 +119,7 @@ def get_purchase_statistics(
 def get_accounts_payable(
     company_id: int = Query(...),
     days_ahead: int = Query(7, ge=1, le=90),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -138,6 +142,7 @@ def get_accounts_payable(
 def get_purchase(
     purchase_id: int,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -155,6 +160,7 @@ def update_purchase(
     purchase_id: int,
     purchase: purchase_schema.PurchaseUpdate,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -174,6 +180,7 @@ def update_purchase(
 def delete_purchase(
     purchase_id: int,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -192,6 +199,7 @@ def delete_purchase(
 def cancel_purchase(
     purchase_id: int,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -217,6 +225,7 @@ def register_payment(
     purchase_id: int,
     payment: purchase_schema.PurchasePaymentCreate,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -240,6 +249,7 @@ def register_payment(
 def get_purchase_balance(
     purchase_id: int,
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):

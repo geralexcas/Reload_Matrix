@@ -326,10 +326,22 @@ class TreasuryService:
             if not account:
                 raise ValueError("Bank account not found")
 
+            if not account.linked_account_id and not skip_journal_entry:
+                raise ValueError(
+                    f"La cuenta bancaria '{account.bank_name} {account.account_number}' "
+                    f"no tiene una cuenta contable vinculada (linked_account_id). "
+                    f"Debe configurarla en el módulo de Tesorería antes de registrar movimientos."
+                )
+            if not contra_account_id and not skip_journal_entry:
+                raise ValueError(
+                    "Debe especificar una cuenta contable de contrapartida (contra_account_id) "
+                    "para crear el asiento contable del depósito."
+                )
+
             account.current_balance += amount
             balance_after = account.current_balance
 
-            if account.linked_account_id and not skip_journal_entry and contra_account_id:
+            if not skip_journal_entry:
                 je = self._create_journal_entry(
                     company_id=company_id,
                     description=description or f"Deposito a {account.bank_name}",
@@ -355,10 +367,21 @@ class TreasuryService:
             if not account:
                 raise ValueError("Cash account not found")
 
+            if not account.linked_account_id and not skip_journal_entry:
+                raise ValueError(
+                    f"La caja '{account.name}' no tiene una cuenta contable vinculada (linked_account_id). "
+                    f"Debe configurarla en el módulo de Tesorería antes de registrar movimientos."
+                )
+            if not contra_account_id and not skip_journal_entry:
+                raise ValueError(
+                    "Debe especificar una cuenta contable de contrapartida (contra_account_id) "
+                    "para crear el asiento contable del depósito."
+                )
+
             account.current_balance += amount
             balance_after = account.current_balance
 
-            if account.linked_account_id and not skip_journal_entry and contra_account_id:
+            if not skip_journal_entry:
                 je = self._create_journal_entry(
                     company_id=company_id,
                     description=description or f"Ingreso a {account.name}",
@@ -437,11 +460,23 @@ class TreasuryService:
         if account.current_balance < amount:
             raise ValueError("Insufficient balance")
 
+        if not account.linked_account_id and not skip_journal_entry:
+            account_name = account.bank_name if account_type == "BANK" else account.name
+            raise ValueError(
+                f"La cuenta/caja '{account_name}' no tiene una cuenta contable vinculada (linked_account_id). "
+                f"Debe configurarla en el módulo de Tesorería antes de registrar movimientos."
+            )
+        if not contra_account_id and not skip_journal_entry:
+            raise ValueError(
+                "Debe especificar una cuenta contable de contrapartida (contra_account_id) "
+                "para crear el asiento contable del retiro."
+            )
+
         account.current_balance -= amount
         balance_after = account.current_balance
 
         je = None
-        if account.linked_account_id and not skip_journal_entry and contra_account_id:
+        if not skip_journal_entry:
             je = self._create_journal_entry(
                 company_id=company_id,
                 description=description
@@ -807,6 +842,7 @@ class TreasuryService:
         new_status: str,
         company_id: int,
         user_id: Optional[int] = None,
+        bounce_fee: Optional[Decimal] = None,
     ) -> Optional[CheckRegister]:
         check = (
             self.db.query(CheckRegister)
@@ -851,24 +887,46 @@ class TreasuryService:
                         if payable_account
                         else account.linked_account_id
                     )
+                    
+                    lines = [
+                        (
+                            account.linked_account_id,
+                            check.amount,
+                            Decimal("0.00"),
+                            f"Cheque devuelto - reverso",
+                        ),
+                        (
+                            contra_id,
+                            Decimal("0.00"),
+                            check.amount,
+                            f"Cheque #{check.check_number} devuelto",
+                        ),
+                    ]
+                    
+                    if bounce_fee and bounce_fee > 0:
+                        account.current_balance -= bounce_fee
+                        fee_account = self._get_account_by_code(company_id, "5400")
+                        if fee_account:
+                            lines.extend([
+                                (
+                                    fee_account.id,
+                                    bounce_fee,
+                                    Decimal("0.00"),
+                                    f"Comisión cheque devuelto #{check.check_number}",
+                                ),
+                                (
+                                    account.linked_account_id,
+                                    Decimal("0.00"),
+                                    bounce_fee,
+                                    f"Salida comisión cheque devuelto",
+                                )
+                            ])
+
                     je = self._create_journal_entry(
                         company_id=company_id,
                         description=f"Cheque #{check.check_number} devuelto",
                         reference=f"CHK-BOUNCE-{check.check_number}",
-                        lines=[
-                            (
-                                account.linked_account_id,
-                                check.amount,
-                                Decimal("0.00"),
-                                f"Cheque devuelto - reverso",
-                            ),
-                            (
-                                contra_id,
-                                Decimal("0.00"),
-                                check.amount,
-                                f"Cheque #{check.check_number} devuelto",
-                            ),
-                        ],
+                        lines=lines,
                     )
 
                 tx = TreasuryTransaction(
@@ -1267,6 +1325,7 @@ class TreasuryService:
             if account and account.linked_account_id:
                 lines = []
                 if recon.bank_fees_not_recorded > 0:
+                    account.current_balance -= recon.bank_fees_not_recorded
                     fee_acct = self._get_account_by_code(company_id, "5400")
                     if fee_acct:
                         lines.append(
@@ -1286,6 +1345,7 @@ class TreasuryService:
                             )
                         )
                 if recon.interest_not_recorded > 0:
+                    account.current_balance += recon.interest_not_recorded
                     int_acct = self._get_account_by_code(company_id, "4200")
                     if int_acct:
                         lines.append(

@@ -9,7 +9,7 @@ from app.models.sql.audit import AuditLog, Permission
 from app.schemas import user as user_schema
 from app.core.database import get_db
 from app.core import security
-from app.api.v1.deps import get_current_superuser, get_current_active_user
+from app.api.v1.deps import get_current_superuser, get_current_active_user, verify_company_membership
 from app.services.backup_service import BackupService
 
 
@@ -24,6 +24,7 @@ def list_users(
     company_id: Optional[int] = Query(None),
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
@@ -203,6 +204,7 @@ def get_audit_logs(
     action: Optional[str] = Query(None),
     skip: int = 0,
     limit: int = 100,
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_superuser),
 ):

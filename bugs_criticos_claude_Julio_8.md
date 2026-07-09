@@ -1024,3 +1024,587 @@ def complete_reconciliation(self, reconciliation_id: int, company_id: int,
     return recon
 ```
 
+
+---
+
+### 🔴 BUG #9: CHEQUES DEVUELTOS NO REGISTRAN COMISIÓN BANCARIA
+
+**Severidad:** MEDIA  
+**Archivo:** `backend/app/services/treasury_service.py` (líneas 894-950)  
+**Impacto:** Gastos bancarios no contabilizados, utilidades infladas
+
+#### Descripción del Problema
+
+Cuando un cheque es devuelto (`BOUNCED`), el sistema revierte correctamente el saldo bancario y crea un asiento contable, pero **NO registra la comisión** que el banco cobra por el rechazo del cheque.
+
+```python
+def update_check_status(self, check_id: int, new_status: str, company_id: int, ...):
+    # ... validaciones ...
+
+    if new_status == "BOUNCED" and old_status != "BOUNCED":
+        account = self.get_bank_account_by_id(check.bank_account_id, company_id)
+        if account:
+            account.current_balance += check.amount  # ✅ Revierte el monto del cheque
+            self.db.commit()
+            self.db.refresh(account)
+
+            # ✅ Crea asiento de reverso
+            je = self._create_journal_entry(
+                company_id=company_id,
+                description=f"Cheque #{check.check_number} devuelto",
+                reference=f"CHK-BOUNCE-{check.check_number}",
+                lines=[
+                    (account.linked_account_id, check.amount, Decimal("0.00"), ...),
+                    (contra_id, Decimal("0.00"), check.amount, ...),
+                ],
+            )
+
+            # ❌ NO registra la comisión del banco por rechazo
+            # Típicamente entre $5,000 y $50,000 en Colombia
+```
+
+#### Impacto Real
+
+**Escenario:**
+1. Empresa emite cheque por $2,000,000
+2. Banco lo rechaza (fondos insuficientes del receptor)
+3. Banco cobra comisión de $15,000
+
+**Contabilización actual (INCORRECTA):**
+```
+Asiento CHK-BOUNCE-12345:
+  Débito:  Cuentas por Pagar (2110)  $2,000,000
+  Crédito: Bancos (111010)            $2,000,000
+```
+
+**Contabilización correcta (FALTANTE):**
+```
+Asiento CHK-BOUNCE-12345:
+  Débito:  Cuentas por Pagar (2110)    $2,000,000
+  Débito:  Gastos Bancarios (5400)     $15,000     ← FALTA
+  Crédito: Bancos (111010)              $2,015,000  ← MAL (solo revierte $2M)
+```
+
+**Resultado:**
+- Saldo bancario real: -$15,000 vs saldo en sistema: $0
+- Gastos no contabilizados: $15,000 × N cheques devueltos
+- Utilidades sobreestimadas
+
+#### Solución Recomendada
+
+```python
+def update_check_status(
+    self, check_id: int, new_status: str, company_id: int,
+    user_id: Optional[int] = None,
+    bounce_fee: Optional[Decimal] = None  # ✅ Nuevo parámetro
+):
+    check = self.db.query(CheckRegister).filter(...).first()
+    if not check:
+        return None
+
+    # ... validaciones ...
+
+    if new_status == "BOUNCED" and old_status != "BOUNCED":
+        account = self.get_bank_account_by_id(check.bank_account_id, company_id)
+        if account:
+            # ✅ Determinar comisión (default o proporcionado)
+            if bounce_fee is None:
+                # Comisión típica en Colombia: 4 mil pesos UVT (aprox $15,000)
+                from app.core.config import settings
+                bounce_fee = Decimal(str(settings.UVT_VALUE * 4)) / Decimal("100")
+            
+            # ✅ Revertir cheque Y descontar comisión
+            account.current_balance += check.amount  # Revierte cheque
+            account.current_balance -= bounce_fee     # Descuenta comisión
+            
+            self.db.commit()
+            self.db.refresh(account)
+
+            # ✅ Crear asiento contable completo
+            payable_account = self._get_account_by_code(company_id, "2110")
+            fee_account = self._get_account_by_code(company_id, "5400")
+            
+            lines = [
+                # Reverso de la cuenta por pagar
+                (
+                    payable_account.id if payable_account else account.linked_account_id,
+                    check.amount,
+                    Decimal("0.00"),
+                    f"Reverso cheque #{check.check_number} devuelto"
+                ),
+                # Gasto por comisión
+                (
+                    fee_account.id if fee_account else account.linked_account_id,
+                    bounce_fee,
+                    Decimal("0.00"),
+                    f"Comisión cheque devuelto"
+                ),
+                # Crédito total al banco
+                (
+                    account.linked_account_id,
+                    Decimal("0.00"),
+                    check.amount + bounce_fee,
+                    f"Reverso cheque + comisión"
+                ),
+            ]
+            
+            je = self._create_journal_entry(
+                company_id=company_id,
+                description=f"Cheque #{check.check_number} devuelto con comisión",
+                reference=f"CHK-BOUNCE-{check.check_number}",
+                lines=lines,
+            )
+
+            # Registrar transacción de tesorería
+            tx = TreasuryTransaction(
+                company_id=company_id,
+                account_type="BANK",
+                bank_account_id=check.bank_account_id,
+                transaction_type="CHECK_BOUNCED",
+                amount=check.amount + bounce_fee,
+                description=f"Cheque #{check.check_number} devuelto + comisión ${bounce_fee:,.2f}",
+                reference=f"CHK-BOUNCE-{check.check_number}",
+                journal_entry_id=je.id if je else None,
+                balance_after=account.current_balance,
+                created_by=user_id,
+            )
+            self.db.add(tx)
+
+    self.db.commit()
+    self.db.refresh(check)
+    return check
+```
+
+**Actualizar el schema para recibir el parámetro:**
+
+```python
+# backend/app/schemas/treasury.py
+class CheckStatusUpdate(BaseModel):
+    new_status: str
+    bounce_fee: Optional[Decimal] = None  # Comisión por rechazo
+```
+
+---
+
+### 🟠 BUG #10: DECLARACIÓN DE IVA NO CONSIDERA NOTAS CRÉDITO/DÉBITO
+
+**Severidad:** ALTA  
+**Archivo:** `backend/app/services/accounting_service.py` (líneas 1005-1076)  
+**Impacto:** Declaraciones de IVA incorrectas ante DIAN, sanciones fiscales
+
+#### Descripción del Problema
+
+La función `get_declaracion_iva()` calcula el IVA a pagar restando IVA generado (ventas) menos IVA soportado (compras), pero **NO incluye** el efecto de las notas crédito y débito que modifican el IVA de facturas existentes.
+
+```python
+def get_declaracion_iva(self, company_id: int, date_from: Optional[datetime] = None,
+                        date_to: Optional[datetime] = None) -> Dict[str, Any]:
+    # ... código ...
+
+    # ✅ Obtiene IVA de facturas de venta
+    sales_book = self.get_libro_ventas(company_id, date_from, date_to)
+    
+    # ✅ Obtiene IVA de facturas de compra
+    purchases_book = self.get_libro_compras(company_id, date_from, date_to)
+
+    total_iva_generado = sales_book["totals"].get("total_iva", Decimal("0.00"))
+    total_iva_soportado = purchases_book["totals"].get("total_iva", Decimal("0.00"))
+
+    diferencia = total_iva_generado - total_iva_soportado
+    iva_a_pagar = diferencia if diferencia > 0 else Decimal("0.00")
+    
+    # ❌ NO considera notas crédito (que REDUCEN IVA generado)
+    # ❌ NO considera notas débito (que AUMENTAN IVA generado)
+```
+
+**El sistema SÍ tiene un módulo de notas crédito/débito** en `backend/app/services/credit_debit_note_service.py`, pero no está integrado con la declaración de IVA.
+
+#### Escenario de Problema
+
+**Ventas del periodo:**
+- Factura 001: Base $10,000,000 + IVA $1,900,000 = Total $11,900,000
+- Factura 002: Base $5,000,000 + IVA $950,000 = Total $5,950,000
+- **Total IVA generado:** $2,850,000
+
+**Nota crédito:**
+- NC-001 (anula Factura 001): Base -$10,000,000, IVA -$1,900,000
+- Fecha de emisión: dentro del periodo bimestral
+
+**Declaración de IVA actual (INCORRECTA):**
+```
+IVA Generado (ventas):    $2,850,000  ❌ (incluye factura anulada)
+IVA Soportado (compras):  $500,000
+───────────────────────────────────
+IVA a Pagar:              $2,350,000  ❌
+```
+
+**Declaración de IVA correcta (ESPERADA):**
+```
+IVA Generado (ventas):    $2,850,000
+  Menos: Notas Crédito:   -$1,900,000
+  Neto IVA Generado:      $950,000    ✅
+IVA Soportado (compras):  $500,000
+───────────────────────────────────
+IVA a Pagar:              $450,000    ✅
+```
+
+**Impacto:**
+- Empresa declara $2,350,000 cuando solo debe $450,000
+- Pago en exceso de $1,900,000
+- O peor: DIAN detecta inconsistencia y aplica sanción por información inexacta (Art. 647 ET: multa hasta del 100% del valor pagado de menos)
+
+#### Solución Recomendada
+
+```python
+def get_declaracion_iva(self, company_id: int, date_from: Optional[datetime] = None,
+                        date_to: Optional[datetime] = None) -> Dict[str, Any]:
+    company = self.db.query(company_model.Company).filter(...).first()
+    if not company:
+        return {"error": "Company not found"}
+
+    if company.regimen in ("SIMPLE", "NO_RESPONSABLE"):
+        # ... manejo de régimen simple ...
+
+    # Obtener libros de ventas y compras
+    sales_book = self.get_libro_ventas(company_id, date_from, date_to)
+    purchases_book = self.get_libro_compras(company_id, date_from, date_to)
+
+    total_iva_generado = sales_book["totals"].get("total_iva", Decimal("0.00"))
+    total_iva_soportado = purchases_book["totals"].get("total_iva", Decimal("0.00"))
+
+    # ✅ Obtener notas crédito y débito del periodo
+    from app.models.sql.credit_debit_note import CreditDebitNote
+    
+    date_filter = [
+        CreditDebitNote.company_id == company_id,
+        CreditDebitNote.status == "ISSUED",
+    ]
+    if date_from:
+        date_filter.append(CreditDebitNote.issue_date >= date_from)
+    if date_to:
+        date_filter.append(CreditDebitNote.issue_date <= date_to)
+
+    notes = self.db.query(CreditDebitNote).filter(and_(*date_filter)).all()
+
+    # ✅ Calcular ajustes por notas
+    total_notas_credito_iva = Decimal("0.00")
+    total_notas_debito_iva = Decimal("0.00")
+    
+    notas_credito_detail = []
+    notas_debito_detail = []
+
+    for note in notes:
+        # Obtener factura original para validar tipo
+        invoice = self.db.query(Invoice).filter(Invoice.id == note.invoice_id).first()
+        if not invoice:
+            continue
+        
+        # Solo considerar notas sobre facturas de VENTA
+        if invoice.invoice_type != "SALE":
+            continue
+        
+        # Calcular IVA de la nota
+        note_iva = Decimal("0.00")
+        if hasattr(note, 'items') and note.items:
+            for item in note.items:
+                note_iva += item.tax_amount or Decimal("0.00")
+        
+        if note.note_type == "CREDIT":
+            total_notas_credito_iva += note_iva
+            notas_credito_detail.append({
+                "note_number": note.note_number,
+                "invoice_number": invoice.invoice_number,
+                "iva_amount": note_iva,
+                "reason": note.reason,
+            })
+        elif note.note_type == "DEBIT":
+            total_notas_debito_iva += note_iva
+            notas_debito_detail.append({
+                "note_number": note.note_number,
+                "invoice_number": invoice.invoice_number,
+                "iva_amount": note_iva,
+                "reason": note.reason,
+            })
+
+    # ✅ Calcular IVA neto ajustado
+    iva_generado_ajustado = (
+        total_iva_generado 
+        - total_notas_credito_iva 
+        + total_notas_debito_iva
+    )
+
+    diferencia = iva_generado_ajustado - total_iva_soportado
+    iva_a_pagar = diferencia if diferencia > 0 else Decimal("0.00")
+    iva_a_favor = abs(diferencia) if diferencia < 0 else Decimal("0.00")
+
+    return {
+        "company_id": company_id,
+        "company_name": company.name,
+        "company_nit": company.nit,
+        "company_dv": company.dv,
+        "regimen": company.regimen,
+        "period": self._format_period(date_from, date_to),
+        "date_from": date_from,
+        "date_to": date_to,
+        
+        # IVA Generado
+        "iva_generado": sales_book["totals"],
+        "total_iva_generado_bruto": total_iva_generado,
+        
+        # ✅ Ajustes por notas
+        "notas_credito": {
+            "total": total_notas_credito_iva,
+            "detalle": notas_credito_detail,
+        },
+        "notas_debito": {
+            "total": total_notas_debito_iva,
+            "detalle": notas_debito_detail,
+        },
+        "total_iva_generado_neto": iva_generado_ajustado,
+        
+        # IVA Soportado
+        "iva_soportado": purchases_book["totals"],
+        "total_iva_soportado": total_iva_soportado,
+        
+        # Resultado
+        "iva_a_pagar": iva_a_pagar,
+        "iva_a_favor": iva_a_favor,
+        "es_a_pagar": diferencia > 0,
+    }
+```
+
+---
+
+## 🛡️ PLAN DE ACCIÓN INMEDIATO
+
+### 🚨 PRIORIDAD 1: IMPLEMENTAR HOY (Crítico)
+
+#### 1. Bloquear Multi-Tenant Sin Validación
+**Tiempo estimado:** 2 horas  
+**Riesgo actual:** CRÍTICO - Acceso no autorizado a datos
+
+```bash
+# 1. Agregar verify_company_membership a TODOS los endpoints
+cd backend/app/api/v1/routers/
+
+# Buscar endpoints sin el decorador
+grep -r "company_id: int" *.py | grep -v "verify_company_membership"
+
+# 2. Aplicar fix masivo
+for file in *.py; do
+    # Revisar y agregar verify_company_membership donde falte
+done
+```
+
+**Verificación:**
+- ✅ Todos los endpoints tienen `Depends(verify_company_membership)`
+- ✅ Prueba manual: cambiar company_id en petición → 403 Forbidden
+
+---
+
+#### 2. Corregir Asientos de Tesorería
+**Tiempo estimado:** 3 horas  
+**Riesgo actual:** CRÍTICO - Balance descuadrado
+
+```python
+# backend/app/services/treasury_service.py
+
+# Modificar deposit() y withdraw() para VALIDAR linked_account_id
+def deposit(self, ...):
+    if not account.linked_account_id and not skip_journal_entry:
+        raise ValueError(
+            "Cuenta sin configuración contable. Configure 'linked_account_id' "
+            "en el módulo de Tesorería antes de registrar movimientos."
+        )
+```
+
+**Verificación:**
+- ✅ Ejecutar prueba: crear cuenta sin linked_account_id → depositar → Error
+- ✅ Configurar linked_account_id → depositar → Asiento creado ✅
+
+---
+
+#### 3. Proteger Race Condition en Inventario
+**Tiempo estimado:** 2 horas  
+**Riesgo actual:** ALTO - Inventario negativo
+
+```python
+# backend/app/services/inventory_service.py
+
+def deduct_stock(self, ...):
+    # Usar UPDATE con WHERE para validación atómica
+    rows_updated = self.db.query(Product).filter(
+        Product.id == product_id,
+        Product.company_id == company_id,
+        Product.stock_level >= quantity  # ✅ Validación atómica
+    ).update({
+        'stock_level': Product.stock_level - quantity
+    }, synchronize_session=False)
+    
+    if rows_updated == 0:
+        raise ValueError("Stock insuficiente o producto no encontrado")
+```
+
+**Verificación:**
+- ✅ Crear producto con stock = 10
+- ✅ Ejecutar 2 facturas simultáneas (5 unidades cada una)
+- ✅ Stock final = 0 (no 5)
+
+---
+
+### 🟠 PRIORIDAD 2: IMPLEMENTAR ESTA SEMANA (Alto)
+
+#### 4. Corregir Retenciones en Libro de Compras
+**Tiempo estimado:** 4 horas
+
+```python
+# Integrar validación de 27 UVT en get_libro_compras()
+from app.core.config import settings
+uvt_daily_threshold = Decimal(str(settings.UVT_VALUE * 27))
+
+if base_gravable > uvt_daily_threshold:
+    # Aplicar retención
+```
+
+**Verificación:**
+- ✅ Compra < 27 UVT → retefuente = $0
+- ✅ Compra > 27 UVT → retefuente aplicada
+
+---
+
+#### 5. Integrar Notas Crédito/Débito en Declaración IVA
+**Tiempo estimado:** 6 horas
+
+**Verificación:**
+- ✅ Crear factura con IVA
+- ✅ Crear nota crédito en mismo periodo
+- ✅ Declaración IVA muestra ajuste
+
+---
+
+#### 6. Actualizar Saldo Real en Conciliación
+**Tiempo estimado:** 3 horas
+
+**Verificación:**
+- ✅ Conciliar con comisión no registrada
+- ✅ `current_balance` actualizado después de completar
+
+---
+
+### 🟡 PRIORIDAD 3: IMPLEMENTAR ESTE MES (Medio)
+
+#### 7. Corregir Asientos de Stock Inicial
+**Tiempo estimado:** 4 horas
+
+#### 8. Agregar Comisión en Cheques Devueltos
+**Tiempo estimado:** 3 horas
+
+#### 9. Agregar Rollback Explícito en post_journal_entry
+**Tiempo estimado:** 2 horas
+
+#### 10. Validar Referencias de Asientos
+**Tiempo estimado:** 5 horas (agregar campo source_type)
+
+---
+
+## 📊 MÉTRICAS DE IMPACTO
+
+| Bug | Registros Afectados | Impacto Financiero Estimado | Riesgo Legal |
+|-----|---------------------|------------------------------|--------------|
+| #1 Race Condition | ~50 productos | Hasta $5,000,000/mes | Bajo |
+| #2 Tesorería | Todas las cuentas | Balance descuadrado | Alto (auditoría) |
+| #3 Post Entry | ~200 asientos/mes | Corrupción de datos | Muy Alto |
+| #4 Multi-Tenant | TODOS los datos | Violación GDPR/LOPD | Crítico |
+| #5 Referencias | ~100 asientos/mes | Reportes incorrectos | Medio |
+| #6 Retenciones | ~30 compras/mes | $2,000,000/mes | Alto (DIAN) |
+| #7 Stock Inicial | ~20 productos | Balance descuadrado | Medio |
+| #8 Conciliación | ~4 conciliaciones/mes | Saldos incorrectos | Medio |
+| #9 Cheques | ~10 cheques/mes | $150,000/mes | Bajo |
+| #10 Declaración IVA | 1 declaración/bimestre | Multas DIAN hasta 100% | Crítico |
+
+**Impacto financiero total estimado:** $7,000,000 - $10,000,000/mes  
+**Riesgo de multas DIAN:** Hasta $50,000,000 (100% de IVA pagado de menos)
+
+---
+
+## 🔬 RECOMENDACIONES ADICIONALES
+
+### Testing
+
+1. **Crear suite de pruebas de concurrencia:**
+```python
+# backend/tests/load/test_concurrent_inventory.py
+import concurrent.futures
+
+def test_concurrent_deduct_stock():
+    """Simular 10 usuarios facturando simultáneamente el mismo producto"""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(create_invoice, product_id=1) for _ in range(10)]
+        results = [f.result() for f in futures]
+    
+    # Verificar que el stock final sea correcto
+    assert product.stock_level >= 0
+```
+
+2. **Pruebas de integridad contable:**
+```python
+def test_accounting_equation():
+    """Verificar que Activos = Pasivos + Patrimonio después de cada operación"""
+    assets = sum_accounts_by_type("ASSET")
+    liabilities = sum_accounts_by_type("LIABILITY")
+    equity = sum_accounts_by_type("EQUITY")
+    
+    assert abs((assets - (liabilities + equity))) < Decimal("0.01")
+```
+
+---
+
+### Monitoreo
+
+1. **Alertas automáticas:**
+- Inventario negativo detectado
+- Asiento desbalanceado guardado
+- Acceso multi-tenant sin validación
+- Diferencia > $1,000 en conciliación bancaria
+
+2. **Dashboard de salud contable:**
+- Balance general balanceado: ✅/❌
+- Último periodo conciliado: Fecha
+- Facturas sin asiento contable: 0
+- Productos con stock negativo: 0
+
+---
+
+## 📝 CONCLUSIÓN
+
+El sistema **Reload Matrix** tiene una base sólida pero presenta **10 vulnerabilidades críticas** que ponen en riesgo:
+
+✅ La integridad financiera  
+✅ El cumplimiento normativo (DIAN)  
+✅ La seguridad de datos multi-tenant  
+✅ La confianza de los usuarios
+
+**Recomendación ejecutiva:**
+
+🔴 **DETENER OPERACIONES EN PRODUCCIÓN** hasta corregir bugs #1, #2, #4 (Prioridad 1)  
+🟠 **AMBIENTE DE STAGING SOLAMENTE** hasta completar Prioridad 2  
+🟢 **PRODUCCIÓN COMPLETA** después de validar todas las correcciones
+
+**Tiempo estimado total de corrección:** 40 horas (1 semana con 1 desarrollador)
+
+---
+
+**Auditor:** Claude Sonnet 4.5  
+**Fecha:** 8 de Julio de 2026  
+**Versión del Reporte:** 1.0
+
+---
+
+## 📧 CONTACTO PARA SEGUIMIENTO
+
+Para cualquier duda o aclaración sobre este reporte, contactar a:
+- **Equipo de Desarrollo:** [Información de contacto]
+- **Responsable de Calidad:** [Información de contacto]
+
+**Próxima revisión programada:** 15 de Julio de 2026
+

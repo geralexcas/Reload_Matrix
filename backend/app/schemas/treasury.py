@@ -214,6 +214,7 @@ class CheckRegisterResponse(CheckRegisterBase):
 
 class CheckStatusUpdate(BaseModel):
     status: str
+    bounce_fee: Optional[Decimal] = None
 
     @field_validator("status")
     @classmethod

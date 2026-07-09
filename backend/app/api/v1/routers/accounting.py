@@ -548,6 +548,7 @@ def get_reporte_egresos(
     company_id: int,
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -579,6 +580,7 @@ def get_reporte_ingresos(
     company_id: int,
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -609,6 +611,7 @@ def get_reporte_ingresos(
 def get_reporte_patrimonio(
     company_id: int,
     cut_date: Optional[datetime] = Query(None),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -643,6 +646,7 @@ def get_estado_resultados(
     company_id: int,
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -671,6 +675,7 @@ def get_estado_resultados(
 def get_balance_general(
     company_id: int,
     cut_date: Optional[datetime] = Query(None),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):
@@ -697,6 +702,7 @@ def get_balance_general(
 def get_formulario_350(
     company_id: int,
     year: int = Query(..., ge=2020, le=2030),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_user),
 ):

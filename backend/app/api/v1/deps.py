@@ -56,15 +56,32 @@ def verify_company_membership(
     current_user: user_model.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> company_model.Company:
-    db_company = (
-        db.query(company_model.Company)
-        .filter(company_model.Company.id == company_id)
-        .first()
-    )
+    if current_user.is_superuser:
+        db_company = db.query(company_model.Company).filter(
+            company_model.Company.id == company_id
+        ).first()
+        if db_company is None:
+            raise HTTPException(status_code=404, detail="Company not found")
+        return db_company
+    
+    if not current_user.company_id:
+        raise HTTPException(
+            status_code=403,
+            detail="User has no company assigned. Contact administrator."
+        )
+    
+    if current_user.company_id != company_id:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Access denied. You belong to company {current_user.company_id}, not company {company_id}."
+        )
+    
+    db_company = db.query(company_model.Company).filter(
+        company_model.Company.id == company_id
+    ).first()
     if db_company is None:
         raise HTTPException(status_code=404, detail="Company not found")
-    if current_user.company_id and current_user.company_id != company_id:
-        raise HTTPException(status_code=403, detail="Access denied to this company")
+    
     return db_company
 
 

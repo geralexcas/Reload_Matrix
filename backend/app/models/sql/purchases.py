@@ -18,7 +18,7 @@ class Purchase(Base):
     __tablename__ = "purchases"
 
     id = Column(Integer, primary_key=True, index=True)
-    purchase_number = Column(String(50), unique=True, index=True, nullable=False)
+    purchase_number = Column(String(50), index=True, nullable=False)
     partner_id = Column(Integer, ForeignKey("partners.id"), nullable=False)
     purchase_date = Column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -74,6 +74,11 @@ class Purchase(Base):
     )
     payments = relationship(
         "PurchasePayment", back_populates="purchase", cascade="all, delete-orphan"
+    )
+
+    from sqlalchemy import UniqueConstraint
+    __table_args__ = (
+        UniqueConstraint('purchase_number', 'company_id', name='uq_purchase_number_company'),
     )
 
 
