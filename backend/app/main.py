@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
-from slowapi import Limiter
+from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from app.api.v1.routers import (
@@ -37,7 +37,7 @@ app = FastAPI(title="Business Management System", version="0.1.0")
 # Rate limiter — ponytail: memory storage, switch to redis:// if throughput matters
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, limiter._rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS with allowed origins from settings
 origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
