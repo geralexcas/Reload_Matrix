@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
@@ -9,11 +9,17 @@ from app.core import security
 from app.core.config import settings
 from app.core.database import get_db
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
 
 @router.post("/token", response_model=user_schema.Token)
+@limiter.limit("5/minute")
 async def login_for_access_token(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
 ):
     user = (
@@ -55,7 +61,9 @@ async def login_for_access_token(
 
 
 @router.post("/refresh", response_model=user_schema.Token)
+@limiter.limit("10/minute")
 async def refresh_access_token(
+    request: Request,
     token_data: user_schema.RefreshToken, db: Session = Depends(get_db)
 ):
     try:
@@ -154,7 +162,11 @@ async def logout(token_data: user_schema.RefreshToken, db: Session = Depends(get
     response_model=user_schema.UserResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def register_user(user: user_schema.UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("3/hour")
+def register_user(
+    request: Request,
+    user: user_schema.UserCreate, db: Session = Depends(get_db)
+):
     is_valid, message = security.validate_password_strength(user.password)
     if not is_valid:
         raise HTTPException(status_code=400, detail=message)

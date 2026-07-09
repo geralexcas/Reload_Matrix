@@ -1,9 +1,13 @@
 import logging
+import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from app.api.v1.routers import (
     auth,
     company,
@@ -30,16 +34,44 @@ logger = logging.getLogger("app")
 
 app = FastAPI(title="Business Management System", version="0.1.0")
 
+# Rate limiter — ponytail: memory storage, switch to redis:// if throughput matters
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, limiter._rate_limit_exceeded_handler)
+
 # Configure CORS with allowed origins from settings
-import os
 origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
-logger.info(f"CORS allowed origins: {origins}")
+
+if not origins:
+    env = settings.ENVIRONMENT
+    if env == "production":
+        raise ValueError(
+            "ALLOWED_ORIGINS must be set in production. "
+            "Example: ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com"
+        )
+    elif env == "staging":
+        logger.warning(
+            "ALLOWED_ORIGINS not set in staging. Using wildcard - NOT recommended."
+        )
+        origins = ["*"]
+    else:
+        origins = [
+            "http://localhost:8080",
+            "http://localhost:8081",
+            "http://127.0.0.1:8080",
+            "http://127.0.0.1:8081",
+        ]
+        logger.warning(
+            "ALLOWED_ORIGINS not set. Using development defaults: %s", origins
+        )
+
+logger.info("CORS allowed origins: %s", origins)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if origins else ["*"],
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 # Include routers
@@ -58,7 +90,6 @@ app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 
 # Serve uploaded files
-import os
 
 try:
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)

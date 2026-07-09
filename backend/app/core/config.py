@@ -1,4 +1,6 @@
+import logging
 import os
+import secrets
 from pydantic_settings import BaseSettings
 
 
@@ -47,10 +49,36 @@ class Settings(BaseSettings):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if not self.SECRET_KEY or self.SECRET_KEY == "your-secret-key-here":
-            if os.getenv("ENVIRONMENT", "development") == "production":
+            env = self.ENVIRONMENT
+            if env == "production":
                 raise ValueError(
-                    "SECRET_KEY must be set in production. "
+                    "SECRET_KEY must be explicitly set in production. "
                     "Generate one with: openssl rand -hex 32"
+                )
+            elif env == "staging":
+                raise ValueError(
+                    "SECRET_KEY must be set in staging environment. "
+                    "Use a strong random key, different from production."
+                )
+            else:
+                self.SECRET_KEY = secrets.token_hex(32)
+                logging.getLogger("app").warning(
+                    "SECRET_KEY auto-generated for development. "
+                    "Tokens will be invalid after restart. "
+                    "Set SECRET_KEY in .env for persistence."
+                )
+        if len(self.SECRET_KEY) < 32:
+            env = self.ENVIRONMENT
+            if env in ("production", "staging"):
+                raise ValueError(
+                    f"SECRET_KEY too short ({len(self.SECRET_KEY)} chars). "
+                    "Minimum 32 characters (64 recommended). "
+                    "Generate one with: openssl rand -hex 32"
+                )
+            else:
+                logging.getLogger("app").warning(
+                    f"SECRET_KEY is too short ({len(self.SECRET_KEY)} chars). "
+                    "Auto-generated tokens may be weak. Set a strong key in .env."
                 )
 
 

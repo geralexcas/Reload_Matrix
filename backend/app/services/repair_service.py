@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
+import logging
 from app.models.sql.repair import RepairOrder, RepairItem, Technician, Warranty
 from app.models.sql.invoicing import Invoice, InvoiceItem
 from app.models.sql import company as company_model
@@ -9,6 +10,8 @@ from app.schemas import invoicing as inv_schema
 from app.schemas.payment import POSPayment  # Se asume que existe o crearé un base model
 from decimal import Decimal
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 
 class RepairService:
@@ -72,7 +75,7 @@ class RepairService:
     ) -> List[dict]:
         from app.models.sql.user import User
         
-        print(f"DEBUG: Getting technicians for company_id={company_id}")
+        logger.debug("Getting technicians for company_id=%s", company_id)
         
         users = (
             self.db.query(User)
@@ -82,7 +85,7 @@ class RepairService:
             .all()
         )
         
-        print(f"DEBUG: Found {len(users)} users with role TECNICO")
+        logger.debug("Found %d users with role TECNICO", len(users))
         
         # Format for TechnicianResponse schema
         technician_list = []
@@ -103,7 +106,7 @@ class RepairService:
                 "created_at": u.created_at,
                 "updated_at": u.updated_at
             })
-        print(f"DEBUG: Returning {len(technician_list)} formatted technicians")
+        logger.debug("Returning %d formatted technicians", len(technician_list))
         return technician_list
 
     def get_technician_by_id(
@@ -387,7 +390,7 @@ class RepairService:
                         if invoice:
                             invoice.status = "CANCELLED"
                 except Exception as e:
-                    print(f"Warning: Associated invoice {db_ro.invoice_id} could not be cancelled: {e}")
+                    logger.warning("Associated invoice %s could not be cancelled: %s", db_ro.invoice_id, e)
 
             # 3. Marcar como cancelada
             db_ro.status = "CANCELLED"

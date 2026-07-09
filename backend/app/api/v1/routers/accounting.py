@@ -2,12 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
+import logging
 
 from app.models.sql import company as company_model, user as user_model
 from app.schemas import accounting as accounting_schema
 from app.services import accounting_service
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user, verify_company_membership, require_permission
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -634,7 +637,7 @@ def get_reporte_patrimonio(
     )
     
     # DEBUG LOG
-    print(f"DEBUG PATRIMONIO [{company_id}]: {result.get('patrimonio_desglose')}")
+    logger.debug("PATRIMONIO [%s]: %s", company_id, result.get('patrimonio_desglose'))
     
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])

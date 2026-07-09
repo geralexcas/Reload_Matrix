@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional, Dict
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from app.models.sql.purchases import Purchase, PurchaseItem, PurchasePayment
 from app.models.sql import company as company_model
@@ -130,7 +130,7 @@ class PurchaseService:
         db_purchase = Purchase(
             purchase_number=purchase_data.purchase_number,
             partner_id=purchase_data.partner_id,
-            purchase_date=parse_date(purchase_data.purchase_date) or datetime.now(),
+            purchase_date=parse_date(purchase_data.purchase_date) or datetime.now(timezone.utc),
             due_date=parse_date(purchase_data.due_date),
             subtotal=total_subtotal,
             tax_amount=total_tax,
@@ -310,7 +310,7 @@ class PurchaseService:
             - pending_invoices: All unpaid invoices
             - summary: Total amounts
         """
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         upcoming_cutoff = now + timedelta(days=days_ahead)
         
         # Get all non-paid purchases for the company
@@ -590,7 +590,7 @@ class PurchaseService:
             purchase_id=purchase_id,
             payment_method=payment_data.payment_method.value,
             amount=payment_data.amount,
-            payment_date=payment_data.payment_date or datetime.now(),
+            payment_date=payment_data.payment_date or datetime.now(timezone.utc),
             reference=payment_data.reference,
             notes=payment_data.notes,
             created_by=user_id,

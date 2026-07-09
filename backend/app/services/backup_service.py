@@ -2,7 +2,7 @@ import os
 import subprocess
 import shutil
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict
 from app.core.config import settings
@@ -18,7 +18,7 @@ class BackupService:
         """
         Creates a ZIP backup containing the database dump and uploads folder.
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         backup_name = f"backup_{timestamp}"
         temp_dir = self.backup_dir / backup_name
         temp_dir.mkdir(parents=True, exist_ok=True)
