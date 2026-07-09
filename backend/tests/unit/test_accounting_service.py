@@ -110,7 +110,7 @@ class TestCreateDefaultChartOfAccounts:
         service.create_default_chart_of_accounts(company_simple.id)
         db_session.commit()
 
-        iva_soportado = service._get_account_by_code(company_simple.id, "2408")
+        iva_soportado = service._get_account_by_code(company_simple.id, "2408", allow_inactive=True)
         assert iva_soportado is not None, "Cuenta 2408 no fue creada para empresa Simple"
         assert iva_soportado.is_active is False, "Cuenta 2408 deberia estar inactiva para Simple"
 
@@ -505,7 +505,7 @@ class TestPostJournalEntryTreasurySync:
         with pytest.raises(ValueError, match="balanced"):
             service.post_journal_entry(je.id, test_company.id)
 
-    def test_post_already_posted_returns_none(self, db_session, test_company):
+    def test_post_already_posted_raises_error(self, db_session, test_company):
         service = AccountingService(db_session)
         service.create_default_chart_of_accounts(test_company.id)
         db_session.commit()
@@ -540,5 +540,5 @@ class TestPostJournalEntryTreasurySync:
         db_session.add_all([line1, line2])
         db_session.commit()
 
-        result = service.post_journal_entry(je.id, test_company.id)
-        assert result is None
+        with pytest.raises(ValueError, match="already posted"):
+            service.post_journal_entry(je.id, test_company.id)

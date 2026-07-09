@@ -2269,6 +2269,7 @@ class AccountingService:
         total_cost: Decimal = Decimal("0.00"),
         is_paid: bool = False,
         payment_method: Optional[str] = None,
+        payment_account_id: Optional[int] = None,
         wallet_amount_applied: Decimal = Decimal("0.00"),
         commit: bool = True,
     ) -> Optional[JournalEntry]:
@@ -2407,12 +2408,27 @@ class AccountingService:
             # 2. Aplicar el resto según payment_method
             if remaining_recaudo > Decimal("0.00") and is_paid:
                 payment_account = accounts_receivable # Fallback
-                if payment_method == "CASH" and cash_account:
-                    payment_account = cash_account
-                elif payment_method in ("BANK_TRANSFER", "CARD", "TRANSFER") and bank_account:
-                    payment_account = bank_account
-                elif payment_method == "WALLET" and wallet_account:
-                    payment_account = wallet_account
+                
+                if payment_account_id:
+                    from app.models.sql.treasury import BankAccount, CashAccount
+                    treasury_acc = None
+                    if payment_method == "CASH":
+                        treasury_acc = self.db.query(CashAccount).filter_by(id=payment_account_id, company_id=company_id).first()
+                    elif payment_method in ("BANK_TRANSFER", "CARD", "TRANSFER"):
+                        treasury_acc = self.db.query(BankAccount).filter_by(id=payment_account_id, company_id=company_id).first()
+                    
+                    if treasury_acc and treasury_acc.linked_account_id:
+                        linked_coa = self.db.query(ChartOfAccounts).filter_by(id=treasury_acc.linked_account_id).first()
+                        if linked_coa:
+                            payment_account = linked_coa
+
+                if payment_account == accounts_receivable:
+                    if payment_method == "CASH" and cash_account:
+                        payment_account = cash_account
+                    elif payment_method in ("BANK_TRANSFER", "CARD", "TRANSFER") and bank_account:
+                        payment_account = bank_account
+                    elif payment_method == "WALLET" and wallet_account:
+                        payment_account = wallet_account
 
                 if payment_account and payment_account.id != accounts_receivable.id:
                     # Credit Accounts Receivable

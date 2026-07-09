@@ -569,6 +569,7 @@ class InvoicingService:
                             description=f"Reversión por anulación de factura {db_invoice.invoice_number}",
                             reference=f"REV-INV-{db_invoice.id}",
                             company_id=company_id,
+                            skip_journal_entry=True,
                             commit=False,
                         )
 

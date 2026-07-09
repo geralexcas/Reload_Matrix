@@ -1,0 +1,5 @@
+eres un experto contador realiza las siguientes aciones en la aplicacion
+crea  tres productos desde la ruta http://localhost:8081/inventory/new  un articulo  que sea pagado desdecaja mayor
+otro producto pagado por cuenta bancaria , otro producto  a credito, luego acede a cada ruta  de los acientos contables involucradas y revisa que los movimientos
+sean correctos 
+

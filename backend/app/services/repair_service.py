@@ -617,6 +617,9 @@ class RepairService:
                 partner_id=db_ro.partner_id,
                 is_warranty=False,
                 source_type="REPAIR",
+                is_paid=payment_data.is_paid if payment_data else False,
+                payment_method=payment_data.payment_method if payment_data else "CREDIT",
+                payment_account_id=payment_data.payment_account_id if payment_data else None,
             )
             
         # Register payment if provided
@@ -630,7 +633,8 @@ class RepairService:
                 amount=payment_data.amount_paid or total_amount,
                 description=f"Cobro reparación {invoice_number}",
                 reference=payment_data.reference or f"Pago Fra. {invoice_number}",
-                company_id=company_id
+                company_id=company_id,
+                skip_journal_entry=True
             )
 
         self.db.commit()

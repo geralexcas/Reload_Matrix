@@ -61,8 +61,7 @@ class TreasuryService:
                 )
             )
 
-        self.db.commit()
-        self.db.refresh(db_je)
+        self.db.flush()
         return db_je
 
     # ──────────────────────────────────────────────
@@ -316,6 +315,7 @@ class TreasuryService:
         reference: str,
         company_id: int,
         user_id: Optional[int] = None,
+        contra_account_id: Optional[int] = None,
         skip_journal_entry: bool = False,
         commit: bool = True,
     ) -> TreasuryTransaction:
@@ -329,24 +329,20 @@ class TreasuryService:
             account.current_balance += amount
             balance_after = account.current_balance
 
-            if account.linked_account_id and not skip_journal_entry:
-                cash_account = self._get_account_by_code(company_id, "111001")
-                linked_acct_id = account.linked_account_id
-                contra_id = cash_account.id if cash_account else linked_acct_id
-
+            if account.linked_account_id and not skip_journal_entry and contra_account_id:
                 je = self._create_journal_entry(
                     company_id=company_id,
                     description=description or f"Deposito a {account.bank_name}",
                     reference=reference,
                     lines=[
                         (
-                            linked_acct_id,
+                            account.linked_account_id,
                             amount,
                             Decimal("0.00"),
-                            f"Deposito - {account.name}",
+                            f"Deposito - {account.name if hasattr(account, 'name') else account.bank_name}",
                         ),
                         (
-                            contra_id,
+                            contra_account_id,
                             Decimal("0.00"),
                             amount,
                             f"Contra partida deposito",
@@ -362,16 +358,7 @@ class TreasuryService:
             account.current_balance += amount
             balance_after = account.current_balance
 
-            if account.linked_account_id and not skip_journal_entry:
-                contra_account = self._get_account_by_code(company_id, "3100")
-                
-                linked_acct = (
-                    self.db.query(ChartOfAccounts)
-                    .filter(ChartOfAccounts.id == account.linked_account_id)
-                    .first()
-                )
-                account_name = linked_acct.name if linked_acct else f"Cuenta #{account.linked_account_id}"
-                
+            if account.linked_account_id and not skip_journal_entry and contra_account_id:
                 je = self._create_journal_entry(
                     company_id=company_id,
                     description=description or f"Ingreso a {account.name}",
@@ -384,10 +371,10 @@ class TreasuryService:
                             f"Ingreso caja - {account.name}",
                         ),
                         (
-                            contra_account.id if contra_account else account.linked_account_id,
+                            contra_account_id,
                             Decimal("0.00"),
                             amount,
-                            f"Contra partida - Capital social",
+                            f"Contra partida ingreso",
                         ),
                     ],
                 )
@@ -432,6 +419,7 @@ class TreasuryService:
         reference: str,
         company_id: int,
         user_id: Optional[int] = None,
+        contra_account_id: Optional[int] = None,
         skip_journal_entry: bool = False,
         commit: bool = True,
     ) -> TreasuryTransaction:
@@ -453,12 +441,7 @@ class TreasuryService:
         balance_after = account.current_balance
 
         je = None
-        if account.linked_account_id and not skip_journal_entry:
-            expense_account = self._get_account_by_code(company_id, "5400")
-            contra_id = (
-                expense_account.id if expense_account else account.linked_account_id
-            )
-
+        if account.linked_account_id and not skip_journal_entry and contra_account_id:
             je = self._create_journal_entry(
                 company_id=company_id,
                 description=description
@@ -466,10 +449,10 @@ class TreasuryService:
                 reference=reference,
                 lines=[
                     (
-                        contra_id,
+                        contra_account_id,
                         amount,
                         Decimal("0.00"),
-                        f"Retiro - {description or 'N/A'}",
+                        f"Contra partida retiro",
                     ),
                     (
                         account.linked_account_id,

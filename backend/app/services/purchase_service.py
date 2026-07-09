@@ -635,6 +635,7 @@ class PurchaseService:
                 description=f"Pago a proveedor - Factura {purchase.purchase_number}",
                 reference=payment.reference,
                 company_id=company_id,
+                skip_journal_entry=True,
             )
         except Exception as e:
             # Log error but don't fail the payment
