@@ -109,9 +109,9 @@
                 <tr class="utilidad-row">
                   <td>
                     <span class="account-code">RES</span>
-                    Utilidad del Ejercicio (Ingresos - Gastos)
+                    Utilidad del Ejercicio (Ingresos - Gastos - Costos)
                     <div class="utilidad-detail">
-                      ({{ formatCurrency(data.patrimonio_desglose.ingresos_totales) }} - {{ formatCurrency(data.patrimonio_desglose.gastos_totales) }})
+                      ({{ formatCurrency(data.patrimonio_desglose.ingresos_totales) }} - {{ formatCurrency(data.patrimonio_desglose.gastos_totales) }} - {{ formatCurrency(data.patrimonio_desglose.costos_totales || 0) }})
                     </div>
                   </td>
                   <td class="text-right" :class="data.patrimonio_desglose.utilidad_ejercicio >= 0 ? 'text-success' : 'text-danger'">
@@ -208,7 +208,7 @@ export default {
       for (const acc of this.data.patrimonio_desglose.cuentas_patrimonio) {
         csv += `Patrimonio,"${acc.account_name}","${acc.account_code}",${acc.balance}\n`
       }
-      csv += `Patrimonio,"Utilidad del Ejercicio (Ingresos - Gastos)",RES,${this.data.patrimonio_desglose.utilidad_ejercicio}\n`
+      csv += `Patrimonio,"Utilidad del Ejercicio (Ingresos - Gastos - Costos)",RES,${this.data.patrimonio_desglose.utilidad_ejercicio}\n`
       csv += `Patrimonio,TOTAL PATRIMONIO,,${this.data.total_patrimonio}\n`
       
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })

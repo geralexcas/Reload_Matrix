@@ -1694,6 +1694,7 @@ class AccountingService:
         
         total_ingresos = Decimal("0.00")
         total_gastos = Decimal("0.00")
+        total_costos = Decimal("0.00")
 
         for acc in mayor_data.get("accounts", []):
             balance = acc["final_balance"]
@@ -1719,10 +1720,12 @@ class AccountingService:
                 total_ingresos += balance
             elif acc["account_type"] == "EXPENSE":
                 total_gastos += balance
+            elif acc["account_type"] == "COST":
+                total_costos += balance
 
-        # La Utilidad del Ejercicio es Ingresos - Gastos.
-        # get_libro_mayor ya devuelve balances positivos para sus naturalezas (Cr para ingresos, Dr para gastos)
-        utilidad_ejercicio = total_ingresos - total_gastos
+        # La Utilidad del Ejercicio es Ingresos - Gastos - Costos.
+        # get_libro_mayor ya devuelve balances positivos para sus naturalezas (Cr para ingresos, Dr para gastos/costos)
+        utilidad_ejercicio = total_ingresos - total_gastos - total_costos
         total_patrimonio = total_patrimonio_cuentas + utilidad_ejercicio
 
         return {
@@ -1739,7 +1742,8 @@ class AccountingService:
                 "total_cuentas_patrimonio": total_patrimonio_cuentas,
                 "utilidad_ejercicio": utilidad_ejercicio,
                 "ingresos_totales": total_ingresos,
-                "gastos_totales": total_gastos
+                "gastos_totales": total_gastos,
+                "costos_totales": total_costos
             },
             "total_patrimonio": total_patrimonio,
             "patrimonio_calculado_a_p": total_activos - total_pasivos
