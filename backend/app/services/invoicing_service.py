@@ -582,3 +582,72 @@ class InvoicingService:
             raise
         
         return db_invoice
+
+    def pay_invoice(
+        self, invoice_id: int, company_id: int, payment_method: str, payment_account_id: Optional[int] = None
+    ) -> Invoice:
+        """
+        Marks an existing draft/issued invoice as paid.
+        Generates the accounting entry to move from Accounts Receivable to Cash/Bank,
+        and registers the deposit in Treasury.
+        """
+        db_invoice = self.get_invoice_by_id(invoice_id, company_id)
+        if not db_invoice:
+            raise ValueError("Factura no encontrada")
+
+        if db_invoice.status in ("PAID", "CANCELLED"):
+            raise ValueError(f"No se puede pagar una factura en estado {db_invoice.status}")
+
+        try:
+            # 1. Update Invoice Status
+            db_invoice.status = "PAID"
+            # We don't have a direct payment_method field on Invoice, but if we did, we'd update it.
+
+            # 2. Accounting Entry
+            accounting_service = AccountingService(self.db)
+            accounting_service.create_journal_entry_for_invoice_payment(
+                invoice_id=db_invoice.id,
+                company_id=company_id,
+                total_amount=db_invoice.total_amount,
+                payment_method=payment_method,
+            )
+
+            # 3. Treasury Deposit
+            treasury_service = TreasuryService(self.db)
+            acct_type = None
+            acct_id = payment_account_id
+
+            if not acct_type or not acct_id:
+                if payment_method == "CASH":
+                    cash_accounts = treasury_service.get_cash_accounts(company_id)
+                    if cash_accounts:
+                        acct_type = "CASH"
+                        acct_id = cash_accounts[0].id
+                elif payment_method in ("BANK_TRANSFER", "CARD", "TRANSFER"):
+                    try:
+                        bank_accounts = treasury_service.get_bank_accounts(company_id)
+                        if bank_accounts:
+                            acct_type = "BANK"
+                            acct_id = bank_accounts[0].id
+                    except AttributeError:
+                        pass
+            
+            if acct_type and acct_id:
+                treasury_service.deposit(
+                    account_type=acct_type,
+                    account_id=acct_id,
+                    amount=db_invoice.total_amount,
+                    description=f"Pago - Factura {db_invoice.invoice_number}",
+                    reference=f"INV-{db_invoice.id:06d}",
+                    company_id=company_id,
+                    skip_journal_entry=True, # Accounting is handled above
+                    commit=False,
+                )
+
+            self.db.commit()
+            self.db.refresh(db_invoice)
+        except Exception:
+            self.db.rollback()
+            raise
+
+        return db_invoice

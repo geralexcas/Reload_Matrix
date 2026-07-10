@@ -2532,6 +2532,84 @@ class AccountingService:
             self.db.refresh(db_je)
         return db_je
 
+    def create_journal_entry_for_invoice_payment(
+        self,
+        invoice_id: int,
+        company_id: int,
+        total_amount: Decimal,
+        payment_method: str,
+    ) -> Optional[JournalEntry]:
+        """
+        Creates a journal entry to record the payment of a previously issued/draft invoice.
+        Debits Cash/Bank and Credits Accounts Receivable.
+        """
+        company = (
+            self.db.query(company_model.Company)
+            .filter(company_model.Company.id == company_id)
+            .first()
+        )
+        if not company:
+            return None
+
+        accounts_receivable = self._get_account_by_code(company_id, "1130")
+        if not accounts_receivable:
+            raise ValueError("Falta la cuenta contable 1130 (Cuentas por cobrar).")
+
+        cash_account = self._get_account_by_code(company_id, "111001")
+        bank_account = self._get_account_by_code(company_id, "111010")
+        wallet_account = self._get_account_by_code(company_id, "2150")
+
+        payment_account = accounts_receivable
+        if payment_method == "CASH" and cash_account:
+            payment_account = cash_account
+        elif payment_method in ("BANK_TRANSFER", "CARD", "TRANSFER") and bank_account:
+            payment_account = bank_account
+        elif payment_method == "WALLET" and wallet_account:
+            payment_account = wallet_account
+
+        if payment_account.id == accounts_receivable.id:
+            raise ValueError(f"No se encontró una cuenta válida de Tesorería para el método de pago {payment_method}")
+
+        # Create journal entry
+        entry_date = datetime.now(timezone.utc)
+        reference = f"INV-{invoice_id:06d}"
+        description = f"Recaudo de Factura {reference} - {payment_method}"
+
+        db_je = JournalEntry(
+            entry_date=entry_date,
+            description=description,
+            reference=reference,
+            company_id=company_id,
+            is_posted=True,
+        )
+        self.db.add(db_je)
+        self.db.flush()
+
+        # Credit Accounts Receivable
+        self.db.add(
+            JournalEntryLine(
+                journal_entry_id=db_je.id,
+                account_id=accounts_receivable.id,
+                debit_amount=Decimal("0.00"),
+                credit_amount=total_amount,
+                description=f"Recaudo - Factura {reference}",
+            )
+        )
+        
+        # Debit Cash/Bank/Wallet
+        self.db.add(
+            JournalEntryLine(
+                journal_entry_id=db_je.id,
+                account_id=payment_account.id,
+                debit_amount=total_amount,
+                credit_amount=Decimal("0.00"),
+                description=f"Ingreso de dinero - {payment_method}",
+            )
+        )
+
+        self.db.flush()
+        return db_je
+
     def _validate_journal_entry_balance(self, je_id: int) -> None:
         lines = (
             self.db.query(JournalEntryLine)

@@ -133,29 +133,6 @@ def update_invoice(
     return db_invoice
 
 
-@router.delete("/{invoice_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_invoice(
-    invoice_id: int,
-    company_id: int,
-    company_dep: company_model.Company = Depends(verify_company_membership),
-    db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
-):
-    db_company = (
-        db.query(company_model.Company)
-        .filter(company_model.Company.id == company_id)
-        .first()
-    )
-    if db_company is None:
-        raise HTTPException(status_code=404, detail="Company not found")
-
-    service = invoicing_service.InvoicingService(db)
-    success = service.delete_invoice(invoice_id, company_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Invoice not found")
-    return None
-
-
 @router.post("/{invoice_id}/cancel", response_model=inv_schema.InvoiceResponse)
 def cancel_invoice(
     invoice_id: int,
@@ -183,6 +160,43 @@ def cancel_invoice(
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error cancelling invoice: {str(e)}"
+        )
+
+
+@router.post("/{invoice_id}/pay", response_model=inv_schema.InvoiceResponse)
+def pay_invoice(
+    invoice_id: int,
+    payment_data: inv_schema.InvoicePayment,
+    company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
+    db: Session = Depends(get_db),
+    current_user: user_model.User = Depends(get_current_user),
+):
+    """
+    Mark a pending invoice as paid.
+    Creates accounting entry (cash/bank debit, A/R credit) and registers treasury deposit.
+    """
+    db_company = (
+        db.query(company_model.Company)
+        .filter(company_model.Company.id == company_id)
+        .first()
+    )
+    if db_company is None:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    service = invoicing_service.InvoicingService(db)
+    try:
+        return service.pay_invoice(
+            invoice_id, 
+            company_id, 
+            payment_method=payment_data.payment_method,
+            payment_account_id=payment_data.payment_account_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error paying invoice: {str(e)}"
         )
 
 

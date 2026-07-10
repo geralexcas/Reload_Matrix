@@ -207,3 +207,8 @@ class CreditDebitNoteResponse(CreditDebitNoteBase):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class InvoicePayment(BaseModel):
+    payment_method: str = Field(..., description="CASH, TRANSFER, CARD, WALLET")
+    payment_account_id: Optional[int] = Field(None, description="ID opcional de la cuenta de tesorería específica")

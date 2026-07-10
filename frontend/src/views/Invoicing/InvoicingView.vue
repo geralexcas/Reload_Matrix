@@ -7,6 +7,28 @@
         <button class="btn btn-primary" @click="showForm = true">+ Nueva Factura</button>
       </div>
 
+      <!-- Resumen de Facturas Pendientes (Notificación) -->
+      <div class="summary-cards" v-if="pendingInvoicesCount > 0">
+        <div class="summary-card warning-card">
+          <div class="summary-icon">
+            <i class="fas fa-exclamation-triangle"></i>
+          </div>
+          <div class="summary-content">
+            <h3>Facturas Pendientes</h3>
+            <p class="summary-value">{{ pendingInvoicesCount }} facturas sin cancelar</p>
+          </div>
+        </div>
+        <div class="summary-card danger-card">
+          <div class="summary-icon">
+            <i class="fas fa-money-bill-wave"></i>
+          </div>
+          <div class="summary-content">
+            <h3>Total Adeudado</h3>
+            <p class="summary-value">{{ formatCOP(pendingInvoicesTotal) }}</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Barra de búsqueda por nombre -->
       <div class="search-bar-wrapper">
         <div class="search-input-group">
@@ -38,6 +60,7 @@
               <th>Subtotal</th>
               <th>IVA</th>
               <th>Total</th>
+              <th>Estado Pago</th>
               <th>Estado DIAN</th>
               <th>Fecha</th>
               <th class="text-center">Acciones</th>
@@ -52,6 +75,15 @@
               <td>{{ formatCOP(invoice.vat_amount || 0) }}</td>
               <td>{{ formatCOP(invoice.total_amount) }}</td>
               <td>
+                <span class="badge" :class="{
+                  'badge-success': invoice.status === 'PAID',
+                  'badge-warning': invoice.status === 'ISSUED' || invoice.status === 'DRAFT',
+                  'badge-secondary': invoice.status === 'CANCELLED'
+                }">
+                  {{ invoice.status === 'PAID' ? 'Pagada' : (invoice.status === 'CANCELLED' ? 'Anulada' : 'Pendiente') }}
+                </span>
+              </td>
+              <td>
                 <span :class="['badge', `badge-${(invoice.estado_dian || 'draft').toLowerCase()}`]">
                   {{ invoice.estado_dian || 'Borrador' }}
                 </span>
@@ -59,6 +91,10 @@
               <td>{{ new Date(invoice.issue_date).toLocaleDateString() }}</td>
               <td>
                 <div class="actions-cell">
+                  <button v-if="invoice.status !== 'PAID' && invoice.status !== 'CANCELLED'" class="btn-action btn-success" @click="openPaymentModal(invoice)" title="Registrar Pago">
+                    <i class="fas fa-hand-holding-usd"></i>
+                    <span>Pagar</span>
+                  </button>
                   <button class="btn-action btn-view" @click="viewInvoice(invoice)" title="Ver detalle">
                     <i class="fas fa-eye"></i>
                     <span>Ver</span>
@@ -363,6 +399,44 @@
       @close="showAssemblyModal = false"
       @confirm="onAssemblyConfirm"
     />
+
+    <!-- Modal Registrar Pago -->
+    <div v-if="showPaymentModal" class="modal-backdrop">
+      <div class="modal-content payment-modal" style="max-width: 450px;">
+        <div class="modal-header">
+          <h3>Registrar Pago</h3>
+          <button class="close-btn" @click="closePaymentModal">&times;</button>
+        </div>
+        <div class="modal-body" v-if="invoiceToPay">
+          <p>Factura: <strong>{{ invoiceToPay.invoice_number }}</strong></p>
+          <p>Cliente: <strong>{{ invoiceToPay.partner_name }}</strong></p>
+          <p class="mb-4">Monto a pagar: <strong class="text-success" style="font-size: 1.2rem;">{{ formatCOP(invoiceToPay.total_amount) }}</strong></p>
+          
+          <div class="form-group">
+            <label>Método de Pago:</label>
+            <select v-model="paymentForm.payment_method" class="form-control" @change="fetchWalletForPayment">
+              <option value="CASH">Efectivo</option>
+              <option value="TRANSFER">Transferencia / Banco</option>
+              <option value="CARD">Tarjeta de Crédito/Débito</option>
+              <!-- Show WALLET only if client has enough balance -->
+              <option v-if="paymentWallet && paymentWallet.balance >= invoiceToPay.total_amount" value="WALLET">
+                Monedero (Saldo: {{ formatCOP(paymentWallet.balance) }})
+              </option>
+            </select>
+            <small v-if="paymentWallet && paymentWallet.balance < invoiceToPay.total_amount" class="text-muted d-block mt-1">
+              * El cliente tiene saldo en monedero ({{ formatCOP(paymentWallet.balance) }}), pero no es suficiente para cubrir la factura.
+            </small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closePaymentModal">Cancelar</button>
+          <button class="btn btn-success font-weight-bold" @click="confirmPayment" :disabled="submittingPayment">
+            <span v-if="submittingPayment">Procesando...</span>
+            <span v-else>Confirmar Pago</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -410,7 +484,15 @@ export default {
       },
       showPrintModal: false,
       showAssemblyModal: false,
+      showPaymentModal: false,
       selectedInvoiceForPrint: null,
+      invoiceToPay: null,
+      paymentForm: {
+        payment_method: 'CASH',
+        payment_account_id: null
+      },
+      paymentWallet: null,
+      submittingPayment: false,
       printMode: 'standard',
       partnerWallet: null,
       applyWalletBalance: false
@@ -434,6 +516,15 @@ export default {
       return this.invoices.filter(inv =>
         (inv.partner_name || '').toLowerCase().includes(q)
       )
+    },
+    pendingInvoices() {
+      return this.invoices.filter(inv => inv.status === 'DRAFT' || inv.status === 'ISSUED')
+    },
+    pendingInvoicesCount() {
+      return this.pendingInvoices.length
+    },
+    pendingInvoicesTotal() {
+      return this.pendingInvoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0)
     },
     selectedPartnerName() {
       if (!this.form.partner_id) return 'Cliente Generales';
@@ -743,6 +834,46 @@ export default {
         await this.loadTreasuryAccounts()
       } catch (err) {
         alert(err.response?.data?.detail || 'Error al anular la factura')
+      }
+    },
+    async openPaymentModal(invoice) {
+      this.invoiceToPay = invoice;
+      this.paymentForm = { payment_method: 'CASH', payment_account_id: null };
+      this.paymentWallet = null;
+      this.showPaymentModal = true;
+      await this.fetchWalletForPayment();
+    },
+    closePaymentModal() {
+      this.showPaymentModal = false;
+      this.invoiceToPay = null;
+    },
+    async fetchWalletForPayment() {
+      if (!this.invoiceToPay) return;
+      try {
+        const response = await api.get('/api/v1/wallet/', {
+          params: { company_id: this.companyId }
+        });
+        const wallets = response.data || [];
+        this.paymentWallet = wallets.find(w => w.partner_id === parseInt(this.invoiceToPay.partner_id)) || null;
+      } catch (err) {
+        console.error('Error fetching wallet for payment:', err);
+      }
+    },
+    async confirmPayment() {
+      if (!this.invoiceToPay) return;
+      this.submittingPayment = true;
+      try {
+        await api.post(`/api/v1/invoicing/${this.invoiceToPay.id}/pay`, this.paymentForm, {
+          params: { company_id: this.companyId }
+        });
+        alert('Pago registrado correctamente');
+        this.closePaymentModal();
+        await this.loadInvoices();
+        await this.loadTreasuryAccounts();
+      } catch (err) {
+        alert(err.response?.data?.detail || 'Error al registrar el pago');
+      } finally {
+        this.submittingPayment = false;
       }
     }
   },
@@ -1231,4 +1362,130 @@ export default {
   cursor: pointer;
 }
 .font-weight-bold { font-weight: bold; }
+
+/* === Summary / Notification Cards === */
+.summary-cards {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+.summary-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  min-width: 260px;
+  flex: 1;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  animation: slideIn 0.3s ease;
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.warning-card {
+  background: linear-gradient(135deg, #fff8e1, #ffe57f33);
+  border: 1px solid #ffe082;
+}
+.danger-card {
+  background: linear-gradient(135deg, #ffebee, #ff5252 10%);
+  border: 1px solid #ef9a9a;
+}
+.summary-icon {
+  font-size: 2rem;
+  opacity: 0.7;
+}
+.warning-card .summary-icon { color: #f59e0b; }
+.danger-card  .summary-icon { color: #ef4444; }
+.summary-content h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #555;
+}
+.summary-value {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1a202c;
+}
+
+/* === Payment status badges === */
+.badge-success  { background: #d1fae5; color: #065f46; }
+.badge-warning  { background: #fef3c7; color: #92400e; }
+.badge-secondary { background: #e2e8f0; color: #4a5568; }
+
+/* === Pay button === */
+.btn-success {
+  background-color: #f0fff4;
+  color: #276749;
+  border: 1px solid #9ae6b4;
+}
+.btn-success:hover {
+  background-color: #38a169;
+  color: white;
+  border-color: #38a169;
+}
+
+/* === Payment Modal === */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.payment-modal {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  overflow: hidden;
+  width: 90%;
+}
+.payment-modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(135deg, #1a365d, #2b6cb0);
+  color: white;
+}
+.payment-modal .modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.payment-modal .close-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.8);
+  font-size: 1.6rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  transition: color 0.15s;
+}
+.payment-modal .close-btn:hover { color: white; }
+.payment-modal .modal-body {
+  padding: 1.5rem;
+}
+.payment-modal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
 </style>
