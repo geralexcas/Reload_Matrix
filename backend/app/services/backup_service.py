@@ -99,6 +99,13 @@ class BackupService:
 
             db_url = settings.DATABASE_URL
             
+            # Terminate other connections to avoid lock deadlocks during restore
+            terminate_sql = "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid();"
+            subprocess.run(
+                ["psql", "--dbname=" + db_url, "-c", terminate_sql],
+                capture_output=True
+            )
+            
             # Using psql to restore the dump
             # --clean in pg_dump helps by dropping objects before creating them
             result = subprocess.run(
@@ -115,8 +122,15 @@ class BackupService:
             if backup_uploads.exists():
                 # Clear current uploads and copy from backup
                 if self.uploads_dir.exists():
-                    shutil.rmtree(self.uploads_dir)
-                shutil.copytree(backup_uploads, self.uploads_dir)
+                    # Delete contents instead of the directory to avoid "Device or resource busy" on Docker mounts
+                    for item in self.uploads_dir.iterdir():
+                        if item.is_dir():
+                            shutil.rmtree(item)
+                        else:
+                            item.unlink()
+                else:
+                    self.uploads_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(backup_uploads, self.uploads_dir, dirs_exist_ok=True)
 
             return True
         except Exception as e:
