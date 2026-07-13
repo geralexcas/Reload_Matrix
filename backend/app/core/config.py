@@ -28,6 +28,11 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = "postgresql://user:password@db:5432/business_db"
+    # ponytail: URL para pg_dump/psql (BackupService).  Cae a DATABASE_URL si
+    # no se setea.  Tras el hardening multi-tenant la app conecta como `appuser`
+    # (no-superuser) y RLS filtra pg_dump a 0 filas tenant — el backup debe
+    # usar un rol con BYPASSRLS (el superuser POSTGRES_USER o un rol dedicado).
+    BACKUP_DATABASE_URL: str = ""
 
     # DIAN
     DIAN_ENVIRONMENT: str = "test"

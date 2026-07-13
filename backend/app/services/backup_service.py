@@ -28,7 +28,12 @@ class BackupService:
 
         try:
             # 1. Database Dump
-            db_url = settings.DATABASE_URL
+            # ponytail: BACKUP_DATABASE_URL cae a DATABASE_URL si no se setea.
+            # Tras el hardening multi-tenant, DATABASE_URL apunta a `appuser`
+            # (no-superuser) y RLS filtraria pg_dump a 0 filas tenant.  El
+            # backup debe usar un rol con BYPASSRLS (ver BACKUP_DATABASE_URL
+            # en .env.example).
+            db_url = settings.BACKUP_DATABASE_URL or settings.DATABASE_URL
             sql_file = temp_dir / "database.sql"
             
             # Using pg_dump with --dbname flag which handles the URL
@@ -100,7 +105,9 @@ class BackupService:
             if not sql_file.exists():
                 raise Exception("El archivo database.sql no se encuentra en el respaldo")
 
-            db_url = settings.DATABASE_URL
+            # ponytail: la restauracion INSERTa filas de multiples tenants a la
+            # vez; debe bypassar RLS (BACKUP_DATABASE_URL -> rol BYPASSRLS).
+            db_url = settings.BACKUP_DATABASE_URL or settings.DATABASE_URL
             
             # Terminate other connections to avoid lock deadlocks during restore
             terminate_sql = "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid();"
