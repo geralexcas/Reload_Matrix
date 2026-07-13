@@ -43,9 +43,11 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Set tenant context for ORM auto-filter (safety net against cross-tenant
-    # data leakage).  Users with company_id get filtered; platform-admin
-    # (superuser without company_id) gets no filter (global access).
+    # Set tenant context for ORM auto-filter + RLS (the before_cursor_execute
+    # event in tenant_context reads this ContextVar and sets app.tenant_id on
+    # the PG connection before every query).  Users with company_id get
+    # filtered; platform-admin (superuser without company_id) sets the tenant
+    # via verify_company_membership when operating on a specific company.
     if user.company_id:
         current_tenant_id.set(user.company_id)
 
@@ -92,6 +94,10 @@ def verify_company_membership(
         ).first()
         if db_company is None:
             raise HTTPException(status_code=404, detail="Company not found")
+        # ponytail: platform-admin operates on one tenant at a time; scope the
+        # ContextVar so the ORM filter + RLS apply to the administered company
+        # (denies access to other tenants even via raw SQL).
+        current_tenant_id.set(company_id)
         return db_company
 
     # Tenant-superuser or regular user: limited to their own company

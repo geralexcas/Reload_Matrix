@@ -2,8 +2,11 @@
 
 Verifies that a non-superuser in company A cannot read or access
 data belonging to company B.  These tests are the check for the
-Phase 0 hardening: ORM auto-filter + verify_company_membership fix.
+Phase 0 hardening: ORM auto-filter + verify_company_membership fix,
+and the Phase 2 expansion across all modules.
 """
+
+import pytest
 
 
 class TestTenantIsolation:
@@ -205,3 +208,158 @@ class TestTenantIsolation:
         )
         # 401 = cid mismatch detected (expected after the fix)
         assert resp.status_code == 401
+
+    # ===== Phase 0 regression: admin user-management cross-tenant leaks =====
+    # tenant-superuser (superuser WITH company_id) must not reach users of
+    # another company via /admin/users/* endpoints.  Only platform-admin
+    # (superuser WITHOUT company_id) bypasses.
+
+    def test_admin_get_user_cross_tenant_blocked(
+        self, client, test_company_b, test_user_non_super_b, auth_headers
+    ):
+        """tenant-superuser A cannot GET a user of company B."""
+        resp = client.get(
+            f"/api/v1/admin/users/{test_user_non_super_b.id}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 403
+
+    def test_admin_get_user_own_tenant_allowed(
+        self, client, test_user_non_super, auth_headers
+    ):
+        """tenant-superuser A can GET a user of its own company."""
+        resp = client.get(
+            f"/api/v1/admin/users/{test_user_non_super.id}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["id"] == test_user_non_super.id
+
+    def test_admin_update_user_cross_tenant_blocked(
+        self, client, test_company_b, test_user_non_super_b, auth_headers
+    ):
+        """tenant-superuser A cannot PUT (update) a user of company B."""
+        body = {
+            "email": "hijacked@other.com",
+            "username": "hijacked_b",
+            "full_name": "Hijacked",
+            "role": "ADMINISTRADOR",
+            "password": "Test@1234",
+        }
+        resp = client.put(
+            f"/api/v1/admin/users/{test_user_non_super_b.id}",
+            json=body,
+            headers=auth_headers,
+        )
+        assert resp.status_code == 403
+
+    def test_admin_toggle_active_cross_tenant_blocked(
+        self, client, test_company_b, test_user_non_super_b, auth_headers
+    ):
+        """tenant-superuser A cannot toggle-active of a user in company B."""
+        resp = client.patch(
+            f"/api/v1/admin/users/{test_user_non_super_b.id}/toggle-active",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 403
+
+    def test_admin_delete_user_cross_tenant_blocked(
+        self, client, test_company_b, test_user_non_super_b, auth_headers
+    ):
+        """tenant-superuser A cannot delete a user of company B."""
+        resp = client.delete(
+            f"/api/v1/admin/users/{test_user_non_super_b.id}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 403
+
+    def test_admin_reset_password_cross_tenant_blocked(
+        self, client, test_company_b, test_user_non_super_b, auth_headers
+    ):
+        """tenant-superuser A cannot reset password of a user in company B."""
+        resp = client.post(
+            f"/api/v1/admin/users/{test_user_non_super_b.id}/reset-password/",
+            json={"new_password": "Hijack@1234"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 403
+
+    def test_admin_user_mgmt_platform_admin_bypasses(
+        self,
+        client,
+        test_company_b,
+        test_user_non_super_b,
+        platform_admin_headers,
+    ):
+        """platform-admin can GET/delete-intent a user in any tenant (no leak)."""
+        resp = client.get(
+            f"/api/v1/admin/users/{test_user_non_super_b.id}",
+            headers=platform_admin_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["company_id"] == test_company_b.id
+
+
+# ===== Phase 2 regression: cross-tenant read blocked across ALL modules =====
+# A non-superuser in company A must get 403 hitting any module's list endpoint
+# with company B's id.  Parametrized over every tenant-scoped module.
+
+_TENANT_MODULE_LIST_ENDPOINTS = [
+    "/api/v1/partners/?company_id={b}",
+    "/api/v1/invoicing/?company_id={b}",
+    "/api/v1/repair/?company_id={b}",
+    "/api/v1/purchases/?company_id={b}",
+    "/api/v1/wallet/?company_id={b}",
+    "/api/v1/accounting/chart-of-accounts/?company_id={b}",
+    "/api/v1/treasury/bank-accounts/?company_id={b}",
+    "/api/v1/treasury/cash-accounts/?company_id={b}",
+]
+
+
+@pytest.mark.parametrize("endpoint_template", _TENANT_MODULE_LIST_ENDPOINTS)
+class TestCrossTenantReadBlocked:
+    """Each module's list endpoint must reject a company A user asking for B."""
+
+    def test_cross_tenant_read_blocked(
+        self, client, test_company_b, non_super_auth_headers, endpoint_template
+    ):
+        url = endpoint_template.format(b=test_company_b.id)
+        resp = client.get(url, headers=non_super_auth_headers)
+        assert resp.status_code == 403, f"{url} leaked cross-tenant"
+
+
+# ===== Phase 1 regression: Row-Level Security blocks ORM bypass (PG only) =====
+
+@pytest.mark.skipif(
+    True,
+    reason="requires PostgreSQL + applied RLS migration; SQLite test harness skips. Run manually against PG.",
+)
+class TestRLSBypassBlocked:
+    """Raw SQL that bypasses the ORM auto-filter must STILL be filtered by
+    the PostgreSQL RLS policy (app.tenant_id).  Skipped on SQLite."""
+
+    def test_raw_sql_select_filtered_by_rls(
+        self, client, db_session, test_company, test_company_b, auth_headers
+    ):
+        from sqlalchemy import text
+        from app.core.tenant_context import current_tenant_id
+        from app.models.sql.inventory import Product
+
+        # Create a product in company A
+        current_tenant_id.set(test_company.id)
+        db_session.add(Product(sku="RLS-A", name="A", purchase_price=1, sale_price=2, company_id=test_company.id))
+        db_session.commit()
+
+        # Create a product in company B
+        current_tenant_id.set(test_company_b.id)
+        db_session.add(Product(sku="RLS-B", name="B", purchase_price=1, sale_price=2, company_id=test_company_b.id))
+        db_session.commit()
+
+        # As tenant A, run a RAW SQL SELECT (bypasses the ORM auto-filter).
+        current_tenant_id.set(test_company.id)
+        rows = db_session.execute(text("SELECT company_id FROM products")).fetchall()
+        # RLS must filter out company B's rows even though the ORM filter
+        # was bypassed by raw SQL.
+        assert rows, "expected at least one row"
+        for r in rows:
+            assert r[0] == test_company.id, "RLS leaked cross-tenant row via raw SQL"

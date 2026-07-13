@@ -137,6 +137,10 @@ def main():
         if not company or not user:
             print("Necesita al menos una compañía y un usuario creados antes de ejecutar el seed.")
             return
+        # ponytail: set tenant ContextVar so the before_cursor_execute event
+        # applies app.tenant_id and RLS allows the INSERTs (PG only; SQLite no-op).
+        from app.core.tenant_context import current_tenant_id
+        current_tenant_id.set(company.id)
         print(f"Usando compañía id={company.id}, nombre={company.name}")
         ensure_coa(db, company.id)
         # Crear proveedor y cliente dummy si no existen

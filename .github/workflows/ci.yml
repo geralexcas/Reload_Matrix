@@ -23,6 +23,10 @@ jobs:
         run: |
           cd backend
           ruff check app/
+      - name: Tenant isolation guardrails
+        run: |
+          cd backend
+          python scripts/check_tenant_guardrails.py
 
   backend-test:
     runs-on: ubuntu-latest

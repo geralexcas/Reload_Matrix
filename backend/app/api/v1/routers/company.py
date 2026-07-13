@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.services import accounting_service
 from app.services import dian_billing_range_service as dbr_service
 from app.api.v1.deps import get_current_user, verify_company_membership, get_current_platform_admin
+from app.core.tenant_context import current_tenant_id
 
 router = APIRouter()
 
@@ -97,6 +98,12 @@ def create_company(
 
     db.commit()
     db.refresh(db_company)
+
+    # ponytail: el platform-admin crea la empresa y luego escribe en
+    # chart_of_accounts (tabla tenant-scoped con RLS).  Seteamos el ContextVar
+    # de tenant a la nueva empresa para que el evento before_cursor_execute
+    # aplique app.tenant_id y RLS permita los INSERTs del onboarding.
+    current_tenant_id.set(db_company.id)
 
     accounting_svc = accounting_service.AccountingService(db)
     accounting_svc.create_default_chart_of_accounts(db_company.id)

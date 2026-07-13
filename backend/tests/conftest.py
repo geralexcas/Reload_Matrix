@@ -23,6 +23,10 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(scope="function")
 def db_session():
+    # ponytail: reset tenant ContextVar so a prior test that set it (via auth
+    # flow or directly) can't leak into a test that uses db_session without client.
+    from app.core.tenant_context import current_tenant_id
+    current_tenant_id.set(None)
     Base.metadata.create_all(bind=engine)
     session = TestingSessionLocal()
     try:
@@ -30,6 +34,7 @@ def db_session():
     finally:
         session.close()
         Base.metadata.drop_all(bind=engine)
+        current_tenant_id.set(None)
 
 
 @pytest.fixture(scope="function")

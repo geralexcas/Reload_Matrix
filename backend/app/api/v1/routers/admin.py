@@ -58,11 +58,15 @@ def get_user(
     user = db.query(user_model.User).filter(user_model.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-        
-    if not current_user.is_superuser:
-        if user.company_id != current_user.company_id:
-            raise HTTPException(status_code=403, detail="Not enough permissions to view this user")
-            
+
+    # ponytail: platform-admin (superuser sin company_id) bypass; tenant-superuser
+    # y usuarios regulares solo pueden ver usuarios de su propia empresa.
+    is_platform_admin = current_user.is_superuser and not current_user.company_id
+    if not is_platform_admin and user.company_id != current_user.company_id:
+        raise HTTPException(
+            status_code=403, detail="Not enough permissions to view this user"
+        )
+
     return user
 
 
@@ -131,6 +135,14 @@ def update_user(
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # ponytail: tenant-superuser solo puede mutar usuarios de su empresa;
+    # platform-admin (superuser sin company_id) bypass.
+    is_platform_admin = current_user.is_superuser and not current_user.company_id
+    if not is_platform_admin and db_user.company_id != current_user.company_id:
+        raise HTTPException(
+            status_code=403, detail="Not enough permissions to modify this user"
+        )
+
     db_user.email = user_data.email
     db_user.username = user_data.username
     db_user.full_name = user_data.full_name
@@ -154,6 +166,14 @@ def toggle_user_active(
         raise HTTPException(status_code=404, detail="User not found")
     if db_user.id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
+
+    # ponytail: tenant-superuser solo muta usuarios de su empresa.
+    is_platform_admin = current_user.is_superuser and not current_user.company_id
+    if not is_platform_admin and db_user.company_id != current_user.company_id:
+        raise HTTPException(
+            status_code=403, detail="Not enough permissions to modify this user"
+        )
+
     db_user.is_active = not db_user.is_active
     db.commit()
     db.refresh(db_user)
@@ -172,6 +192,14 @@ def delete_user(
         raise HTTPException(status_code=404, detail="User not found")
     if db_user.id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
+
+    # ponytail: tenant-superuser solo borra usuarios de su empresa.
+    is_platform_admin = current_user.is_superuser and not current_user.company_id
+    if not is_platform_admin and db_user.company_id != current_user.company_id:
+        raise HTTPException(
+            status_code=403, detail="Not enough permissions to delete this user"
+        )
+
     db.delete(db_user)
     db.commit()
     return None
@@ -188,6 +216,13 @@ def reset_user_password(
     db_user = db.query(user_model.User).filter(user_model.User.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # ponytail: tenant-superuser solo resetea passwords de su empresa.
+    is_platform_admin = current_user.is_superuser and not current_user.company_id
+    if not is_platform_admin and db_user.company_id != current_user.company_id:
+        raise HTTPException(
+            status_code=403, detail="Not enough permissions to modify this user"
+        )
 
     new_password = password_data.get("new_password")
     if not new_password:

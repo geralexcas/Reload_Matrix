@@ -28,6 +28,10 @@ def create_test_products():
     db = get_db_session()
     try:
         company_id = 1
+        # ponytail: set tenant ContextVar so the before_cursor_execute event
+        # applies app.tenant_id and RLS allows the INSERTs (PG only; SQLite no-op).
+        from app.core.tenant_context import current_tenant_id
+        current_tenant_id.set(company_id)
 
         # --- Crear 2 proveedores de prueba si no existen ---
         suppliers_data = [

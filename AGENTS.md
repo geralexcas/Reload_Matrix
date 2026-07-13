@@ -247,6 +247,12 @@ def test_create_product(client, auth_headers):
 - Superusuarios bypassean verificacion de permisos
 - `verify_company_membership()` asegura aislamiento multi-tenant
 
+### Aislamiento multi-tenant (capas de defensa)
+- **Capa 1 (ORM):** `app/core/tenant_context.py` auto-filtra SELECTs por `company_id == current_tenant_id` (ContextVar). Excepciones: `User`, `AuditLog` (aisladas por capa de app).
+- **Capa 2 (BD/RLS):** PostgreSQL Row-Level Security en tablas tenant-scoped (migracion `9f8e7d6c5b4a`). Politica `company_id::text = current_setting('app.tenant_id')` (deny-by-default). El evento `before_cursor_execute` setea `app.tenant_id` antes de cada query. **Requiere que la app conecte como rol no-superuser** (`appuser`, ver `scripts/create_app_role.sh`); los superusers bypassan RLS.
+- **Guardrails CI:** `scripts/check_tenant_guardrails.py` banea raw SQL (`text()`) y bulk `Query.update()/delete()` en `app/services` y `app/api` (bypassarian la Capa 1). Si un caso es legitimo, setear `current_tenant_id` antes (la Capa 2 cubre).
+- **Regla:** toda query a un modelo con `company_id` debe pasar por ORM (no raw SQL). Nuevo modelo tenant-scoped → declarar `company_id` y agregar a la migracion RLS.
+
 ### Auditoria
 - `AuditLog` registra: usuario, empresa, accion (CREATE/UPDATE/DELETE/LOGIN/LOGOUT), entidad, valores anteriores/nuevos, IP
 - Decorador `@audit_action(entity_type)` para logging automatico
