@@ -46,7 +46,7 @@ class CompanyCreate(CompanyBase):
 
 class CompanyAdminUser(BaseModel):
     email: str
-    username: str = Field(..., max_length=100)
+    username: Optional[str] = Field(None, max_length=100)
     password: str = Field(..., min_length=8)
     full_name: Optional[str] = Field(None, max_length=255)
 

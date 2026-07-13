@@ -77,9 +77,15 @@ def create_company(
                 )
             raise HTTPException(status_code=400, detail=detail)
         hashed_password = security.get_password_hash(company.admin_user.password)
+        # ponytail: el username es unico global (usado como sub del JWT).
+        # Si no se indica, usamos el email que ya es unico, evitando choques
+        # con el admin del sistema u otros tenants.
+        username = company.admin_user.username or company.admin_user.email
+        if len(username) > 100:
+            username = username[:95] + str(db_company.id)
         admin = user_model.User(
             email=company.admin_user.email,
-            username=company.admin_user.username,
+            username=username,
             hashed_password=hashed_password,
             full_name=company.admin_user.full_name,
             is_active=True,
@@ -116,6 +122,9 @@ def toggle_company_active(
     db.commit()
     db.refresh(db_company)
     return db_company
+
+
+@router.post("/{company_id}/logo")
 def upload_company_logo(
     company_id: int,
     file: UploadFile = File(...),

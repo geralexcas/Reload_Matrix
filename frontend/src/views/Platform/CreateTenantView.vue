@@ -66,15 +66,10 @@
         <label>Nombre Completo *</label>
         <input type="text" v-model="adminForm.full_name" required placeholder="Nombre del administrador" />
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Email *</label>
-          <input type="email" v-model="adminForm.email" required placeholder="admin@empresa.com" />
-        </div>
-        <div class="form-group">
-          <label>Usuario *</label>
-          <input type="text" v-model="adminForm.username" required placeholder="admin" />
-        </div>
+      <div class="form-group">
+        <label>Email *</label>
+        <input type="email" v-model="adminForm.email" required placeholder="admin@empresa.com" />
+        <small class="hint">Se usará como identificador de acceso del administrador del tenant.</small>
       </div>
       <div class="form-group">
         <label>Contraseña *</label>
