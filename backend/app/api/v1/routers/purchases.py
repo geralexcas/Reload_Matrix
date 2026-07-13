@@ -260,7 +260,7 @@ def get_purchase_balance(
     if not purchase:
         raise HTTPException(status_code=404, detail="Purchase not found")
 
-    balance = service.calculate_balance_due(purchase_id)
+    balance = service.calculate_balance_due(purchase_id, company_id)
     return {
         "purchase_id": purchase_id,
         "total_amount": purchase.total_amount,

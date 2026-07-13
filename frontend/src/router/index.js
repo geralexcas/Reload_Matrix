@@ -161,6 +161,24 @@ const routes = [
         component: () => import('@/views/Admin/BackupView.vue')
       },
       {
+        path: '/platform/tenants',
+        name: 'platform-tenants',
+        component: () => import('@/views/Platform/TenantsView.vue'),
+        meta: { platformAdmin: true }
+      },
+      {
+        path: '/platform/tenants/create',
+        name: 'platform-tenants-create',
+        component: () => import('@/views/Platform/CreateTenantView.vue'),
+        meta: { platformAdmin: true }
+      },
+      {
+        path: '/platform/tenants/:id',
+        name: 'platform-tenant-detail',
+        component: () => import('@/views/Platform/TenantDetailView.vue'),
+        meta: { platformAdmin: true }
+      },
+      {
         path: '/repair',
         name: 'repair',
         component: () => import('@/views/Repair/RepairView.vue')
@@ -234,15 +252,31 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const isLoggedIn = store.getters['auth/isLoggedIn']
 
   if (to.matched.some(record => record.meta.requiresAuth)) {
     if (!isLoggedIn) {
       next({ name: 'login', query: { redirect: to.fullPath } })
-    } else {
-      next()
+      return
     }
+    // Fetch profile if not loaded yet (needed for platformAdmin check)
+    if (!store.getters['auth/user']) {
+      try {
+        await store.dispatch('auth/fetchProfile')
+      } catch (e) {
+        next({ name: 'login' })
+        return
+      }
+    }
+    // Platform admin guard
+    if (to.matched.some(record => record.meta.platformAdmin)) {
+      if (!store.getters['auth/isPlatformAdmin']) {
+        next({ name: 'dashboard' })
+        return
+      }
+    }
+    next()
   } else if (to.matched.some(record => record.meta.guest)) {
     if (isLoggedIn) {
       next({ name: 'dashboard' })

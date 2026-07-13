@@ -44,8 +44,10 @@ async def login_for_access_token(
             detail="User account is disabled",
         )
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = security.create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+    access_token = security.create_access_token_with_company(
+        data={"sub": user.username},
+        company_id=user.company_id,
+        expires_delta=access_token_expires,
     )
     refresh_token_expires = timedelta(days=security.REFRESH_TOKEN_EXPIRE_DAYS)
     refresh_token = security.create_refresh_token(
@@ -115,10 +117,12 @@ async def refresh_access_token(
             detail="User account is disabled",
         )
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = security.create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+    access_token = security.create_access_token_with_company(
+        data={"sub": user.username},
+        company_id=user.company_id,
+        expires_delta=access_token_expires,
     )
-    
+
     # Generate new refresh token
     refresh_token_expires = timedelta(days=security.REFRESH_TOKEN_EXPIRE_DAYS)
     new_refresh_token = security.create_refresh_token(

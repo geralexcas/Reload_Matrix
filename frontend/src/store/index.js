@@ -1,6 +1,7 @@
 import { createStore } from 'vuex'
 import auth from './modules/auth'
 import company from './modules/company'
+import admin from './modules/admin'
 import inventory from './modules/inventory'
 import accounting from './modules/accounting'
 import partners from './modules/partners'
@@ -17,6 +18,7 @@ export default createStore({
   modules: {
     auth,
     company,
+    admin,
     inventory,
     accounting,
     partners,

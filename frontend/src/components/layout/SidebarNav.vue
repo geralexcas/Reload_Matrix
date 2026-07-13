@@ -12,7 +12,7 @@
         <span class="nav-icon">📊</span>
         <span v-if="!isCollapsed">Dashboard</span>
       </router-link>
-      <template v-if="isSuperuser">
+      <template v-if="hasCompany">
         <router-link to="/companies" class="nav-item" active-class="active">
           <span class="nav-icon">🏢</span>
           <span v-if="!isCollapsed">Empresa</span>
@@ -22,15 +22,15 @@
           <span v-if="!isCollapsed">Socios</span>
         </router-link>
       </template>
-      <router-link to="/inventory" class="nav-item" active-class="active">
+      <router-link v-if="hasCompany" to="/inventory" class="nav-item" active-class="active">
         <span class="nav-icon">📦</span>
         <span v-if="!isCollapsed">Inventario</span>
       </router-link>
-      <router-link to="/invoicing" class="nav-item" active-class="active">
+      <router-link v-if="hasCompany" to="/invoicing" class="nav-item" active-class="active">
         <span class="nav-icon">📄</span>
         <span v-if="!isCollapsed">Facturación</span>
       </router-link>
-      <div class="nav-group">
+      <div v-if="hasCompany" class="nav-group">
         <div class="nav-item has-submenu" @click="toggleMenu('accounting')" :class="{ 'submenu-open': expandedMenus.accounting }">
           <span class="nav-icon">📒</span>
           <span v-if="!isCollapsed">Contabilidad</span>
@@ -81,24 +81,24 @@
         </transition>
       </div>
 
-      <router-link to="/repair" class="nav-item" active-class="active">
+      <router-link v-if="hasCompany" to="/repair" class="nav-item" active-class="active">
         <span class="nav-icon">🔧</span>
         <span v-if="!isCollapsed">Reparación</span>
       </router-link>
-      <router-link to="/wallet" class="nav-item" active-class="active">
+      <router-link v-if="hasCompany" to="/wallet" class="nav-item" active-class="active">
         <span class="nav-icon">💰</span>
         <span v-if="!isCollapsed">Monedero</span>
       </router-link>
-      <router-link to="/purchases" class="nav-item" active-class="active">
+      <router-link v-if="hasCompany" to="/purchases" class="nav-item" active-class="active">
         <span class="nav-icon">🛒</span>
         <span v-if="!isCollapsed">Compras</span>
       </router-link>
-      <router-link to="/purchases/accounts-payable" class="nav-item" active-class="active">
+      <router-link v-if="hasCompany" to="/purchases/accounts-payable" class="nav-item" active-class="active">
         <span class="nav-icon">📋</span>
         <span v-if="!isCollapsed">Cuentas por Pagar</span>
       </router-link>
 
-      <div v-if="isSuperuser" class="nav-group">
+      <div v-if="hasCompany && isSuperuser" class="nav-group">
         <div class="nav-item has-submenu" @click="toggleMenu('treasury')" :class="{ 'submenu-open': expandedMenus.treasury }">
           <span class="nav-icon">🏦</span>
           <span v-if="!isCollapsed">Tesorería</span>
@@ -141,7 +141,7 @@
           </div>
         </transition>
       </div>
-      <template v-if="isSuperuser">
+      <template v-if="hasCompany && isSuperuser">
         <div v-if="!isCollapsed" class="nav-section-divider">
           <span>Administración</span>
         </div>
@@ -152,6 +152,19 @@
         <router-link to="/admin/users" class="nav-item" active-class="active">
           <span class="nav-icon">👤</span>
           <span v-if="!isCollapsed">Usuarios</span>
+        </router-link>
+      </template>
+      <template v-if="isPlatformAdmin">
+        <div v-if="!isCollapsed" class="nav-section-divider platform-section">
+          <span>Plataforma</span>
+        </div>
+        <router-link to="/platform/tenants" class="nav-item" active-class="active">
+          <span class="nav-icon">🏢</span>
+          <span v-if="!isCollapsed">Empresas</span>
+        </router-link>
+        <router-link to="/platform/tenants/create" class="nav-item" active-class="active">
+          <span class="nav-icon">➕</span>
+          <span v-if="!isCollapsed">Crear Empresa</span>
         </router-link>
       </template>
     </nav>
@@ -176,6 +189,8 @@ export default {
     const route = useRoute()
     const user = computed(() => store.getters['auth/user'])
     const isSuperuser = computed(() => user.value?.is_superuser || false)
+    const isPlatformAdmin = computed(() => store.getters['auth/isPlatformAdmin'])
+    const hasCompany = computed(() => store.getters['auth/hasCompany'])
 
     const expandedMenus = ref({
       accounting: false,
@@ -205,6 +220,8 @@ export default {
 
     return {
       isSuperuser,
+      isPlatformAdmin,
+      hasCompany,
       expandedMenus,
       toggleMenu
     }
@@ -347,6 +364,12 @@ export default {
   letter-spacing: 1px;
   color: #666;
   font-weight: 600;
+}
+
+.platform-section {
+  border-top: 1px solid #333;
+  margin-top: 0.5rem;
+  padding-top: 1rem;
 }
 
 .nav-icon {

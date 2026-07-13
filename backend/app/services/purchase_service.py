@@ -731,9 +731,12 @@ class PurchaseService:
             by_month=by_month_list,
         )
 
-    def calculate_balance_due(self, purchase_id: int) -> Decimal:
+    def calculate_balance_due(self, purchase_id: int, company_id: int = None) -> Decimal:
         """Calculate remaining balance for a purchase"""
-        purchase = self.db.query(Purchase).filter(Purchase.id == purchase_id).first()
+        query = self.db.query(Purchase).filter(Purchase.id == purchase_id)
+        if company_id is not None:
+            query = query.filter(Purchase.company_id == company_id)
+        purchase = query.first()
         if not purchase:
             return Decimal("0.00")
 

@@ -53,6 +53,21 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
+def create_access_token_with_company(
+    data: dict, company_id: Optional[int] = None, expires_delta: Optional[timedelta] = None
+) -> str:
+    """Create access token with tenant claim (cid)."""
+    to_encode = data.copy()
+    if company_id is not None:
+        to_encode["cid"] = company_id
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
 def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     if expires_delta:

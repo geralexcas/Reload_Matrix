@@ -185,4 +185,17 @@ export default {
     loyaltyPoints: 'Puntos de Lealtad',
     redeemPoints: 'Canjear Puntos',
   },
+  platform: {
+    title: 'Plataforma',
+    tenants: 'Empresas',
+    createTenant: 'Crear Empresa',
+    tenantDetail: 'Detalle de Empresa',
+    active: 'Activo',
+    inactive: 'Inactivo',
+    activate: 'Activar',
+    deactivate: 'Desactivar',
+    adminUser: 'Usuario Administrador',
+    users: 'Usuarios',
+    toggleActive: 'Cambiar Estado',
+  },
 }

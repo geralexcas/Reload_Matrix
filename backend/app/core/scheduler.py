@@ -19,8 +19,13 @@ def scheduled_backup():
         # 1. Crear el nuevo respaldo
         filename = service.create_backup()
         logger.info(f"Copia de seguridad creada: {filename}")
-        
-        # 2. Mantener solo los últimos 7 días (ajustable)
+
+        # 2. Subir a almacenamiento offsite (S3-compatible) si esta configurado
+        uploaded = service.upload_to_s3(filename)
+        if uploaded:
+            logger.info(f"Respaldo subido a almacenamiento offsite: {filename}")
+
+        # 3. Mantener solo los últimos 7 días (ajustable)
         deleted_count = service.cleanup_old_backups(keep_last=7)
         if deleted_count > 0:
             logger.info(f"Se eliminaron {deleted_count} respaldos antiguos.")

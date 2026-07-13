@@ -11,7 +11,9 @@ const state = {
 const getters = {
   isLoggedIn: state => !!state.token,
   authState: state => state.status,
-  user: state => state.user
+  user: state => state.user,
+  isPlatformAdmin: state => state.user?.is_superuser && !state.user?.company_id,
+  hasCompany: state => !!state.user?.company_id
 }
 
 const actions = {

@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 """
-Script para crear usuario administrador en reload_Matrix.
+Script para crear usuario administrador en Reload Matrix.
+
+Dos tipos de admin:
+  - PLATFORM-ADMIN: superuser SIN company_id. Gestiona todas las empresas
+    desde el panel Plataforma. No opera como tenant.
+  - TENANT-ADMIN: superuser CON company_id. Administra una empresa especifica.
 
 Uso:
-  # Con PostgreSQL (desde host, requiere Docker levantado):
-  cd /home/geralexcas/reload_Matrix
-  docker compose up -d db
-  cd backend && python scripts/create_admin.py
+  # Crear platform-admin (gestiona tenants, no opera como tenant):
+  docker compose exec backend python scripts/create_admin.py
 
-  # Con SQLite (desarrollo local sin Docker):
-  cd backend && python scripts/create_admin.py --sqlite
+  # Crear tenant-admin de una empresa especifica:
+  docker compose exec backend python scripts/create_admin.py --company-id 3
 
-  # Con parámetros personalizados:
+  # Parametros personalizados:
   python scripts/create_admin.py --email admin@empresa.com --username admin --password "Admin@123456"
 
-  # Asociar a una empresa:
-  python scripts/create_admin.py --company-id 1
+  # Resetear contrasena de un admin existente:
+  python scripts/create_admin.py --reset --password "NuevaClave@123"
 """
 
 import sys

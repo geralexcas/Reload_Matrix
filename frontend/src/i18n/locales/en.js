@@ -210,4 +210,17 @@ export default {
     loyaltyPoints: 'Loyalty Points',
     redeemPoints: 'Redeem Points',
   },
+  platform: {
+    title: 'Platform',
+    tenants: 'Companies',
+    createTenant: 'Create Company',
+    tenantDetail: 'Company Detail',
+    active: 'Active',
+    inactive: 'Inactive',
+    activate: 'Activate',
+    deactivate: 'Deactivate',
+    adminUser: 'Admin User',
+    users: 'Users',
+    toggleActive: 'Toggle Active',
+  },
 }

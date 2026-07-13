@@ -1,7 +1,6 @@
 from app.models.sql import company as company_model
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from typing import Optional
 
 from app.models.sql.partners import Partner
 from app.models.sql.inventory import Product
@@ -24,10 +23,6 @@ def get_dashboard_stats(
     """
     Get dashboard statistics for a specific company.
     """
-    # Verify user belongs to company
-    from app.api.v1.deps import verify_company_membership
-    verify_company_membership(company_id, current_user, db)
-
     partners_count = db.query(Partner).filter(Partner.company_id == company_id).count()
     products_count = db.query(Product).filter(Product.company_id == company_id).count()
     invoices_count = db.query(Invoice).filter(Invoice.company_id == company_id).count()

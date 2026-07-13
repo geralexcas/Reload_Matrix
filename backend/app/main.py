@@ -34,8 +34,10 @@ logger = logging.getLogger("app")
 
 app = FastAPI(title="Business Management System", version="0.1.0")
 
-# Rate limiter — ponytail: memory storage, switch to redis:// if throughput matters
-limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+# Rate limiter — uses Redis if RATE_LIMIT_REDIS_URL is set, else in-memory (single-worker only)
+_redis_url = os.getenv("RATE_LIMIT_REDIS_URL", "")
+_storage_uri = _redis_url if _redis_url else "memory://"
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"], storage_uri=_storage_uri)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -116,6 +118,27 @@ def shutdown_event():
 @app.get("/")
 async def root():
     return {"message": "Welcome to the Business Management System API"}
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint with DB dependency."""
+    from sqlalchemy import text
+    from app.core.database import SessionLocal
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+        db_status = "ok"
+    except Exception:
+        db_status = "error"
+    finally:
+        db.close()
+    from fastapi.responses import JSONResponse
+    status_code = 200 if db_status == "ok" else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={"status": "ok" if status_code == 200 else "degraded", "db": db_status},
+    )
 
 
 # Global exception handlers

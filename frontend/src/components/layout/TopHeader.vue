@@ -5,15 +5,7 @@
       <span class="page-title">{{ title }}</span>
     </div>
     <div class="header-right">
-      <!-- Selector de empresa -->
-      <div class="company-selector" v-if="companies.length > 0">
-        <select v-model="selectedCompanyId" @change="onCompanyChange">
-          <option value="" disabled>Seleccionar empresa...</option>
-          <option v-for="c in companies" :key="c.id" :value="c.id">
-            {{ c.name }} ({{ c.nit }})
-          </option>
-        </select>
-      </div>
+      <span class="company-name" v-if="company">{{ company.name }}</span>
       <span class="user-info" v-if="username">
         <i class="fas fa-user"></i> {{ username }}
       </span>
@@ -32,46 +24,33 @@ export default {
     }
   },
   data() {
-    return {
-      selectedCompanyId: null
-    }
+    return {}
   },
   computed: {
     username() {
       return this.$store.getters['auth/user']?.username || null
     },
-    companies() {
-      return this.$store.getters['company/getCompanies'] || []
+    company() {
+      return this.$store.getters['company/getCompany'] || null
     }
   },
   methods: {
     async fetchCompanies() {
       try {
         await this.$store.dispatch('company/fetchCompanies')
-        // Restaurar empresa seleccionada de sessionStorage después de cargar empresas
-        this.$nextTick(() => {
-          const savedId = sessionStorage.getItem('selectedCompanyId')
-          if (savedId && this.companies.length > 0) {
-            const savedCompany = this.companies.find(c => c.id === parseInt(savedId))
-            if (savedCompany) {
-              this.selectedCompanyId = savedCompany.id
-              this.$store.commit('company/setCompany', savedCompany)
-            }
-          } else if (this.companies.length > 0) {
-            this.selectedCompanyId = this.companies[0].id
-            this.$store.commit('company/setCompany', this.companies[0])
-            sessionStorage.setItem('selectedCompanyId', this.companies[0].id)
-          }
-        })
+        const companies = this.$store.getters['company/getCompanies'] || []
+        // ponytail: platform-admin has no tenant; don't pollute every request
+        // with ?company_id=N (the api.js interceptor would inject it globally).
+        const isPlatformAdmin = this.$store.getters['auth/isPlatformAdmin']
+        if (isPlatformAdmin) {
+          sessionStorage.removeItem('selectedCompanyId')
+          this.$store.commit('company/setCompany', null)
+        } else if (companies.length > 0) {
+          this.$store.commit('company/setCompany', companies[0])
+          sessionStorage.setItem('selectedCompanyId', companies[0].id)
+        }
       } catch (err) {
         console.error('Error fetching companies:', err)
-      }
-    },
-    onCompanyChange() {
-      const company = this.companies.find(c => c.id === this.selectedCompanyId)
-      if (company) {
-        this.$store.commit('company/setCompany', company)
-        sessionStorage.setItem('selectedCompanyId', company.id)
       }
     },
     onLogout() {
@@ -126,20 +105,13 @@ export default {
   gap: 1rem;
 }
 
-.company-selector select {
-  padding: 6px 12px;
-  border: 1px solid #ddd;
+.company-name {
+  color: #2c3e50;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  background: #f0f4f8;
   border-radius: 4px;
-  background: #f8f9fa;
-  font-size: 0.85rem;
-  max-width: 200px;
-  cursor: pointer;
-}
-
-.company-selector select:focus {
-  outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
 }
 
 .user-info {

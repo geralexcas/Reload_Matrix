@@ -2,10 +2,13 @@ import os
 import subprocess
 import shutil
 import zipfile
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict
 from app.core.config import settings
+
+logger = logging.getLogger("app")
 
 class BackupService:
     def __init__(self):
@@ -169,3 +172,37 @@ class BackupService:
                 self.delete_backup(b["filename"])
             return len(to_delete)
         return 0
+
+    def upload_to_s3(self, filename: str) -> bool:
+        """Upload a backup to S3-compatible storage. Requires boto3.
+        Returns True if uploaded, False if not configured or failed.
+        """
+        bucket = settings.BACKUP_S3_BUCKET
+        if not bucket:
+            return False
+
+        try:
+            import boto3
+        except ImportError:
+            logger.warning("boto3 not installed — skipping offsite backup upload.")
+            return False
+
+        filepath = self.get_backup_path(filename)
+        s3_client = boto3.client(
+            "s3",
+            endpoint_url=settings.BACKUP_S3_ENDPOINT or None,
+            aws_access_key_id=settings.BACKUP_S3_ACCESS_KEY,
+            aws_secret_access_key=settings.BACKUP_S3_SECRET_KEY,
+            region_name=settings.BACKUP_S3_REGION or None,
+        )
+        try:
+            s3_client.upload_file(
+                str(filepath),
+                bucket,
+                f"backups/{filename}",
+            )
+            logger.info(f"Backup uploaded to S3: {filename}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to upload backup to S3: {e}")
+            return False

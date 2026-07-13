@@ -1,0 +1,24 @@
+# Caddyfile — edge proxy with automatic TLS
+# Replace {$DOMAIN} with your domain in .env (DOMAIN=reloadmatrix.co)
+{
+	email admin@{$DOMAIN}
+}
+
+{$DOMAIN} {
+	encode gzip zstd
+
+	# API requests proxied to backend
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# Everything else to frontend (nginx serving the SPA)
+	handle {
+		reverse_proxy frontend:80
+	}
+}
+
+# Optional: www redirect
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}

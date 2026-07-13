@@ -16,6 +16,9 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
+# Register ORM tenant auto-filter event
+from app.core.tenant_context import current_tenant_id  # noqa: E402, F401
+
 
 # Dependency to get DB session
 def get_db():

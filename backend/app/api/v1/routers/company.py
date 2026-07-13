@@ -16,7 +16,7 @@ from app.core import security
 from app.core.config import settings
 from app.services import accounting_service
 from app.services import dian_billing_range_service as dbr_service
-from app.api.v1.deps import get_current_user, verify_company_membership
+from app.api.v1.deps import get_current_user, verify_company_membership, get_current_platform_admin
 
 router = APIRouter()
 
@@ -27,7 +27,9 @@ router = APIRouter()
     status_code=status.HTTP_201_CREATED,
 )
 def create_company(
-    company: company_schema.CompanyCreate, db: Session = Depends(get_db)
+    company: company_schema.CompanyCreate,
+    db: Session = Depends(get_db),
+    platform_admin: user_model.User = Depends(get_current_platform_admin),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -45,20 +47,35 @@ def create_company(
     db.flush()
 
     if company.admin_user:
-        existing = (
+        dup_email = (
             db.query(user_model.User)
-            .filter(
-                (user_model.User.email == company.admin_user.email)
-                | (user_model.User.username == company.admin_user.username)
-            )
+            .filter(user_model.User.email == company.admin_user.email)
             .first()
         )
-        if existing:
+        dup_username = (
+            db.query(user_model.User)
+            .filter(user_model.User.username == company.admin_user.username)
+            .first()
+        )
+        if dup_email or dup_username:
             db.rollback()
-            raise HTTPException(
-                status_code=400,
-                detail="User email or username already exists",
-            )
+            if dup_email and dup_username:
+                detail = (
+                    f"Email '{company.admin_user.email}' and username "
+                    f"'{company.admin_user.username}' already exist. "
+                    "Use different values for the tenant admin."
+                )
+            elif dup_email:
+                detail = (
+                    f"Email '{company.admin_user.email}' already exists. "
+                    "Use a different email for the tenant admin."
+                )
+            else:
+                detail = (
+                    f"Username '{company.admin_user.username}' already exists. "
+                    "Use a different username for the tenant admin."
+                )
+            raise HTTPException(status_code=400, detail=detail)
         hashed_password = security.get_password_hash(company.admin_user.password)
         admin = user_model.User(
             email=company.admin_user.email,
@@ -81,7 +98,24 @@ def create_company(
     return db_company
 
 
-@router.post("/{company_id}/logo")
+@router.patch("/{company_id}/toggle-active", response_model=company_schema.CompanyResponse)
+def toggle_company_active(
+    company_id: int,
+    platform_admin: user_model.User = Depends(get_current_platform_admin),
+    db: Session = Depends(get_db),
+):
+    """Activate or deactivate a tenant (platform admin only)."""
+    db_company = (
+        db.query(company_model.Company)
+        .filter(company_model.Company.id == company_id)
+        .first()
+    )
+    if not db_company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    db_company.is_active = not db_company.is_active
+    db.commit()
+    db.refresh(db_company)
+    return db_company
 def upload_company_logo(
     company_id: int,
     file: UploadFile = File(...),
@@ -136,21 +170,31 @@ def upload_company_logo(
 
 
 @router.get("/", response_model=List[company_schema.CompanyResponse])
-def read_companies(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    companies = db.query(company_model.Company).offset(skip).limit(limit).all()
+def read_companies(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: user_model.User = Depends(get_current_user),
+):
+    # Platform admin sees all; tenant users see only their own
+    query = db.query(company_model.Company)
+    if current_user.is_superuser and not current_user.company_id:
+        pass
+    elif current_user.company_id:
+        query = query.filter(company_model.Company.id == current_user.company_id)
+    else:
+        raise HTTPException(status_code=403, detail="User has no company assigned")
+    companies = query.offset(skip).limit(limit).all()
     return companies
 
 
 @router.get("/{company_id}", response_model=company_schema.CompanyResponse)
-def read_company(company_id: int, db: Session = Depends(get_db)):
-    db_company = (
-        db.query(company_model.Company)
-        .filter(company_model.Company.id == company_id)
-        .first()
-    )
-    if db_company is None:
-        raise HTTPException(status_code=404, detail="Company not found")
-    return db_company
+def read_company(
+    company_id: int,
+    company_dep: company_model.Company = Depends(verify_company_membership),
+    db: Session = Depends(get_db),
+):
+    return company_dep
 
 
 @router.put("/{company_id}", response_model=company_schema.CompanyResponse)

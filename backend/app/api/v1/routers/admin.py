@@ -4,12 +4,16 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from app.models.sql import user as user_model, company as company_model
+from app.models.sql import user as user_model
 from app.models.sql.audit import AuditLog, Permission
 from app.schemas import user as user_schema
 from app.core.database import get_db
 from app.core import security
-from app.api.v1.deps import get_current_superuser, get_current_active_user, verify_company_membership
+from app.api.v1.deps import (
+    get_current_superuser,
+    get_current_active_user,
+    get_current_platform_admin,
+)
 from app.services.backup_service import BackupService
 
 
@@ -24,22 +28,23 @@ def list_users(
     company_id: Optional[int] = Query(None),
     skip: int = 0,
     limit: int = 100,
-    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),
 ):
-    """List all users. Superusers can see all or filter by company. Regular users only see their own company."""
+    """List all users. Platform admin can see all or filter by company.
+    Tenant users only see their own company."""
     query = db.query(user_model.User)
-    
-    if not current_user.is_superuser:
-        if current_user.company_id:
-            query = query.filter(user_model.User.company_id == current_user.company_id)
-        else:
-            # If a user is not superuser and has no company, they see nothing or only themselves
-            query = query.filter(user_model.User.id == current_user.id)
-    elif company_id:
-        query = query.filter(user_model.User.company_id == company_id)
-        
+
+    # Platform admin: superuser without company_id — can see all or filter
+    if current_user.is_superuser and not current_user.company_id:
+        if company_id:
+            query = query.filter(user_model.User.company_id == company_id)
+    elif current_user.company_id:
+        # Tenant user (including tenant-superuser): only own company
+        query = query.filter(user_model.User.company_id == current_user.company_id)
+    else:
+        query = query.filter(user_model.User.id == current_user.id)
+
     return query.offset(skip).limit(limit).all()
 
 
@@ -69,15 +74,19 @@ def get_user(
 def create_user(
     user_data: dict,
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_superuser),
+    current_user: user_model.User = Depends(get_current_platform_admin),
 ):
-    """Create a new user (superuser only)."""
+    """Create a new user in any tenant (platform admin only).
+
+    `is_superuser=True` grants tenant-admin privileges within the company.
+    """
     company_id = user_data.get("company_id")
     email = user_data.get("email")
     username = user_data.get("username")
     password = user_data.get("password")
     full_name = user_data.get("full_name")
     role = user_data.get("role", "VENDEDOR")
+    is_superuser = user_data.get("is_superuser", False)
 
     existing = (
         db.query(user_model.User)
@@ -101,7 +110,7 @@ def create_user(
         full_name=full_name,
         role=role,
         is_active=True,
-        is_superuser=False,
+        is_superuser=is_superuser,
         company_id=company_id,
     )
     db.add(db_user)
@@ -204,14 +213,23 @@ def get_audit_logs(
     action: Optional[str] = Query(None),
     skip: int = 0,
     limit: int = 100,
-    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_superuser),
+    current_user: user_model.User = Depends(get_current_active_user),
 ):
-    """Query audit logs (superuser only)."""
+    """Query audit logs. Platform admin sees all or filters by company.
+    Tenant users only see their own company's logs."""
     query = db.query(AuditLog)
-    if company_id:
-        query = query.filter(AuditLog.company_id == company_id)
+
+    # Platform admin: superuser without company_id — can see all or filter
+    if current_user.is_superuser and not current_user.company_id:
+        if company_id:
+            query = query.filter(AuditLog.company_id == company_id)
+    elif current_user.company_id:
+        # Tenant user: only own company's logs
+        query = query.filter(AuditLog.company_id == current_user.company_id)
+    else:
+        return []
+
     if user_id:
         query = query.filter(AuditLog.user_id == user_id)
     if entity_type:

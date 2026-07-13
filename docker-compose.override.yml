@@ -1,0 +1,25 @@
+# docker-compose.override.yml — dev config (auto-merged by docker compose up)
+# DO NOT use in production. Use: docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+services:
+  backend:
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/business_db
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    volumes:
+      - ./backend/app:/app/app
+      - app_uploads:/app/uploads
+      - app_backups:/app/backups
+
+  frontend:
+    ports:
+      - "8081:80"
+
+  db:
+    environment:
+      - POSTGRES_DB=business_db
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5434:5432"

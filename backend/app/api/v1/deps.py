@@ -5,8 +5,8 @@ from jose import jwt, JWTError
 from app.core.database import get_db
 from app.core.config import settings
 from app.core import security
+from app.core.tenant_context import current_tenant_id
 from app.models.sql import user as user_model, company as company_model
-from app.models.sql.user import user_permissions
 
 
 async def get_current_user(
@@ -24,6 +24,7 @@ async def get_current_user(
         username: str = payload.get("sub")
         if username is None:
             raise credentials_exception
+        token_cid = payload.get("cid")
     except JWTError:
         raise credentials_exception
 
@@ -32,6 +33,22 @@ async def get_current_user(
     )
     if user is None:
         raise credentials_exception
+
+    # Validate tenant claim: if token has cid, it must match user's current
+    # company_id.  Divergence means company assignment changed → force re-login.
+    if token_cid is not None and user.company_id and token_cid != user.company_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tenant context changed. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Set tenant context for ORM auto-filter (safety net against cross-tenant
+    # data leakage).  Users with company_id get filtered; platform-admin
+    # (superuser without company_id) gets no filter (global access).
+    if user.company_id:
+        current_tenant_id.set(user.company_id)
+
     return user
 
 
@@ -51,37 +68,51 @@ async def get_current_superuser(
     return current_user
 
 
+async def get_current_platform_admin(
+    current_user: user_model.User = Depends(get_current_user),
+) -> user_model.User:
+    """Platform admin: superuser WITHOUT company_id (global admin, tenant onboarding)."""
+    if not current_user.is_superuser or current_user.company_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Platform admin access required. Contact the platform administrator."
+        )
+    return current_user
+
+
 def verify_company_membership(
     company_id: int,
     current_user: user_model.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> company_model.Company:
-    if current_user.is_superuser:
+    # Platform-admin: superuser without company_id — can access any tenant
+    if current_user.is_superuser and not current_user.company_id:
         db_company = db.query(company_model.Company).filter(
             company_model.Company.id == company_id
         ).first()
         if db_company is None:
             raise HTTPException(status_code=404, detail="Company not found")
         return db_company
-    
+
+    # Tenant-superuser or regular user: limited to their own company
     if not current_user.company_id:
         raise HTTPException(
             status_code=403,
             detail="User has no company assigned. Contact administrator."
         )
-    
+
     if current_user.company_id != company_id:
         raise HTTPException(
             status_code=403,
             detail=f"Access denied. You belong to company {current_user.company_id}, not company {company_id}."
         )
-    
+
     db_company = db.query(company_model.Company).filter(
         company_model.Company.id == company_id
     ).first()
     if db_company is None:
         raise HTTPException(status_code=404, detail="Company not found")
-    
+
     return db_company
 
 
@@ -90,7 +121,7 @@ def require_permission(module: str, action: str):
         current_user: user_model.User = Depends(get_current_active_user),
         db: Session = Depends(get_db),
     ) -> user_model.User:
-        if current_user.is_superuser:
+        if current_user.is_superuser and not current_user.company_id:
             return current_user
 
         from app.models.sql.audit import Permission

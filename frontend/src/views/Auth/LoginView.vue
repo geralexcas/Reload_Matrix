@@ -53,7 +53,11 @@ export default {
           username: this.username,
           password: this.password
         })
-        this.$router.push('/dashboard')
+        if (this.$store.getters['auth/isPlatformAdmin']) {
+          this.$router.push('/platform/tenants')
+        } else {
+          this.$router.push('/dashboard')
+        }
       } catch (error) {
         this.error = error.response?.data?.detail || 'Error al iniciar sesión'
       }

@@ -16,7 +16,11 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from app.models.sql import company, user, partners, inventory, invoicing, repair, wallet, inventory_movement
+from app.models.sql import (
+    company, user, partners, inventory, invoicing, repair, wallet,
+    inventory_movement, product_price_history, credit_debit_notes,
+    dian_billing, purchases, audit, fiscal_period,
+)
 from app.models.sql.accounting import (
     chart_of_accounts,
     journal_entry,

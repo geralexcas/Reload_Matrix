@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     # AI Integration
     GEMINI_API_KEY: str = ""
 
+    # Backup offsite (S3-compatible: S3, Backblaze B2, MinIO, etc.)
+    BACKUP_S3_ENDPOINT: str = ""
+    BACKUP_S3_BUCKET: str = ""
+    BACKUP_S3_ACCESS_KEY: str = ""
+    BACKUP_S3_SECRET_KEY: str = ""
+    BACKUP_S3_REGION: str = ""
+
     model_config = {
         "case_sensitive": True,
         "env_file": ".env",
