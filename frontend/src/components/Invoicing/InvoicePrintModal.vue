@@ -31,13 +31,12 @@
           <div class="header-left">
             <img v-if="company.logo_url" :src="logoFullUrl" alt="Logo" class="main-logo" />
             <img v-else src="@/assets/logo.png" alt="Logo" class="main-logo" />
-            <p class="slogan">Computadores, Impresoras, Suministros y Mantenimiento</p>
-            <p class="slogan-bold">Todo con Garantía Directa y al Mejor Precio</p>
+            <p v-if="company.slogan" class="slogan">{{ company.slogan }}</p>
           </div>
           <div class="header-right">
             <div class="owner-info">
-              <h1 class="owner-name">{{ company.owner_name || 'GERMÁN ALEXANDER CASTILLO BURBANO' }}</h1>
-              <p class="nit-info">NIT: {{ company.nit }}-{{ company.dv || '0' }} / NO RESPONSABLE DE IVA</p>
+              <h1 class="owner-name">{{ company.legal_representative || company.name }}</h1>
+              <p class="nit-info">NIT: {{ company.nit }}-{{ company.dv || '0' }} / {{ regimenLabel }}</p>
             </div>
             
             <div class="invoice-box">
@@ -147,32 +146,32 @@
         </div>
 
         <!-- Legal Disclaimer -->
-        <div class="legal-disclaimer">
-          <p><strong>Nota:</strong> La empresa no responde por golpes, averiaturas causadas por mal manejo de las partes, por problemas ocasionados en el fluido eléctrico, por incorrecta instalación, así como daños ocasionados por desastres naturales. Igualmente no se responsabiliza por daños o perjuicios causados por perdida de información. La garantía se hace efectiva presentando esta factura y el producto en sus empaques originales: si al momento de hacerse efectiva esta garantía es necesario reemplazar la parte, esta continuará con el mismo tiempo de garantía que le reste al producto. La garantía se pierde si los sellos de seguridad presentan anomalías o rupturas. Las normas relativas a la letra de cambio se aplicaran a las facturas de que trata la ley 1231 de Julio 17 de 2008/Artículo 5º. El artículo 779 del Decreto 410 de 1971. Código de Comercio.</p>
+        <div v-if="company.invoice_footer_note" class="legal-disclaimer">
+          <p style="white-space: pre-line;">{{ company.invoice_footer_note }}</p>
         </div>
 
         <!-- Pie de Página de Contacto -->
-        <div class="invoice-footer">
+        <div v-if="company.address || company.phone || company.website || company.email" class="invoice-footer">
           <div class="footer-divider"></div>
           <div class="footer-contact">
-            <span class="footer-item">
+            <span v-if="company.address" class="footer-item">
               <i class="footer-icon">📍</i>
-              Carrera 24 # 15-60 C.C. San Agustín Local 128, Pasto – Nariño
+              {{ company.address }}
             </span>
-            <span class="footer-sep">|</span>
-            <span class="footer-item">
+            <span v-if="company.address && company.phone" class="footer-sep">|</span>
+            <span v-if="company.phone" class="footer-item">
               <i class="footer-icon">📞</i>
-              Tel: 310 313 5881
+              Tel: {{ company.phone }}
             </span>
-            <span class="footer-sep">|</span>
-            <span class="footer-item">
+            <span v-if="(company.address || company.phone) && company.website" class="footer-sep">|</span>
+            <span v-if="company.website" class="footer-item">
               <i class="footer-icon">🌐</i>
-              www.evocomputo.com
+              {{ company.website }}
             </span>
-            <span class="footer-sep">|</span>
-            <span class="footer-item">
+            <span v-if="(company.address || company.phone || company.website) && company.email" class="footer-sep">|</span>
+            <span v-if="company.email" class="footer-item">
               <i class="footer-icon">✉</i>
-              evocomputo@evocomputo.com
+              {{ company.email }}
             </span>
           </div>
         </div>
@@ -222,11 +221,13 @@
         </div>
         <div class="pos-divider">================================</div>
         <div class="pos-contact">
-          <p>📍 Cra 24 # 15-60 C.C. San Agustín L.128</p>
-          <p>Pasto – Nariño</p>
-          <p>📞 Tel: 310 313 5881</p>
-          <p>🌐 www.evocomputo.com</p>
-          <p>✉ evocomputo@evocomputo.com</p>
+          <p v-if="company.address">📍 {{ company.address }}</p>
+          <p v-if="company.phone">📞 Tel: {{ company.phone }}</p>
+          <p v-if="company.website">🌐 {{ company.website }}</p>
+          <p v-if="company.email">✉ {{ company.email }}</p>
+        </div>
+        <div v-if="company.invoice_footer_note" class="pos legal-disclaimer" style="font-size: 8px; text-align: justify; margin: 5px 0; white-space: pre-line;">
+          {{ company.invoice_footer_note }}
         </div>
         <div class="pos-divider">================================</div>
         <div class="pos-footer">¡Gracias por su compra!</div>
@@ -307,6 +308,15 @@ export default {
     partnerPhone() {
       // Small helper to get phone if available in partner_detailed
       return this.invoice.partner?.phone || '';
+    },
+    regimenLabel() {
+      const labels = {
+        COMUN: 'RÉGIMEN COMÚN',
+        SIMPLE: 'RÉGIMEN SIMPLE DE TRIBUTACIÓN',
+        ESPECIAL: 'RÉGIMEN ESPECIAL',
+        NO_RESPONSABLE: 'NO RESPONSABLE DE IVA'
+      };
+      return labels[this.company.regimen] || this.company.regimen || '';
     },
     logoFullUrl() {
       if (this.company.logo_url) {

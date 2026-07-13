@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Boolean, Enum, DateTime
+from sqlalchemy import Column, Integer, String, Date, Boolean, Enum, DateTime, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -23,6 +23,10 @@ class Company(Base):
     )
     fecha_inicio_actividades = Column(Date, nullable=False)
     resolucion_facturacion = Column(String(100))  # DIAN resolution number
+    slogan = Column(String(255), nullable=True)
+    website = Column(String(255), nullable=True)
+    invoice_footer_note = Column(Text, nullable=True)
+    repair_footer_note = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

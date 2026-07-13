@@ -14,6 +14,10 @@ class CompanyBase(BaseModel):
     regimen: str = Field(default="COMUN")
     fecha_inicio_actividades: date
     resolucion_facturacion: Optional[str] = Field(None, max_length=100)
+    slogan: Optional[str] = Field(None, max_length=255)
+    website: Optional[str] = Field(None, max_length=255)
+    invoice_footer_note: Optional[str] = None
+    repair_footer_note: Optional[str] = None
 
     @field_validator("nit")
     @classmethod

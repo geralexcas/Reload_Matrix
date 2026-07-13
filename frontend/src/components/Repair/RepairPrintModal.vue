@@ -28,9 +28,10 @@
         <div class="header-right">
           <div class="order-id-top">{{ order.order_number }}</div>
           <div class="company-details">
-            <p>{{ company.address }}</p>
-            <p>Tel: {{ company.phone }}</p>
-            <p>Email: {{ company.email }}</p>
+            <p v-if="company.address">{{ company.address }}</p>
+            <p v-if="company.phone">Tel: {{ company.phone }}</p>
+            <p v-if="company.website">{{ company.website }}</p>
+            <p v-if="company.email">Email: {{ company.email }}</p>
           </div>
         </div>
       </div>
@@ -102,13 +103,8 @@
       </div>
 
       <!-- Legal Footer -->
-      <div class="legal-footer">
-        <ol>
-          <li><strong>FINALIZACIÓN DEL SERVICIO:</strong> El cliente tiene un (1) mes calendario para retirar el equipo. Pasado este tiempo, se cobrará un costo de bodegaje de $ 5000 COP diarios. Transcurridos dos (2) meses desde la notificación sin que el equipo sea retirado, se declarará legalmente en estado de abandono, y el taller podrá disponer del bien para recuperar costos de reparación y almacenamiento.</li>
-          <li><strong>GARANTÍA:</strong> Se otorga una garantía de noventa (90) días sobre la reparación y repuestos instalados. Esta se anulará por: rotura de sellos de seguridad, contacto con líquidos, sulfatación, golpes, picos de voltaje o intervención técnica de terceros.</li>
-          <li><strong>RESPONSABILIDAD DE DATOS:</strong> El taller no se hace responsable por la integridad o pérdida de información, software o licencias. Es obligación del cliente entregar el equipo con una copia de seguridad (backup) previa.</li>
-          <li><strong>HABEAS DATA:</strong> Al firmar, el cliente autoriza el tratamiento de sus datos personales para fines comerciales y de servicio, conforme a la Ley 1581 de 2012.</li>
-        </ol>
+      <div v-if="company.repair_footer_note" class="legal-footer">
+        <p style="white-space: pre-line;">{{ company.repair_footer_note }}</p>
       </div>
     </div>
   </Teleport>

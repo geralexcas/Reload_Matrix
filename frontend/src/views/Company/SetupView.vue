@@ -143,16 +143,62 @@
         
         <div class="form-group">
           <label for="company_resolution">Resolución de Facturación (DIAN):</label>
-          <input 
-            type="text" 
-            id="company_resolution" 
-            v-model="company.resolucion_facturacion" 
+          <input
+            type="text"
+            id="company_resolution"
+            v-model="company.resolucion_facturacion"
             maxlength="100"
             placeholder="Número de resolución de la DIAN (opcional)"
           />
           <small class="form-text">Resolución que autoriza la facturación electrónica</small>
         </div>
-        
+
+        <h3 class="section-divider">Personalización de Documentos</h3>
+
+        <div class="form-group">
+          <label for="company_slogan">Slogan (línea bajo el logo en facturas):</label>
+          <input
+            type="text"
+            id="company_slogan"
+            v-model="company.slogan"
+            maxlength="255"
+            placeholder="Ej: Computadores y Reparación al Mejor Precio"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="company_website">Sitio Web:</label>
+          <input
+            type="url"
+            id="company_website"
+            v-model="company.website"
+            maxlength="255"
+            placeholder="www.miempresa.com"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="company_invoice_footer">Nota Legal para Facturas y Recibos:</label>
+          <textarea
+            id="company_invoice_footer"
+            v-model="company.invoice_footer_note"
+            rows="6"
+            placeholder="Texto legal que aparece al pie de facturas y recibos de caja. Ej: Nota de garantía, responsabilidad, ley 1231 de 2008, etc."
+          ></textarea>
+          <small class="form-text">Se imprime al pie de la factura de venta y el recibo de caja.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="company_repair_footer">Nota Legal para Órdenes de Reparación:</label>
+          <textarea
+            id="company_repair_footer"
+            v-model="company.repair_footer_note"
+            rows="6"
+            placeholder="Texto legal que aparece al pie de la orden de servicio. Ej: Condiciones de bodegaje, garantía de reparación, responsabilidad de datos, habeas data, etc."
+          ></textarea>
+          <small class="form-text">Se imprime al pie de la orden de servicio técnico.</small>
+        </div>
+
         <div class="form-group">
           <button type="submit" class="btn btn-primary btn-large" :disabled="isLoading">
             {{ isEditing ? 'Actualizar Empresa' : 'Crear Empresa y Continuar' }}
@@ -190,6 +236,10 @@ export default {
         regimen: 'COMUN',
         fecha_inicio_actividades: '',
         resolucion_facturacion: '',
+        slogan: '',
+        website: '',
+        invoice_footer_note: '',
+        repair_footer_note: '',
         logo_url: null
       },
       logoFile: null,
@@ -402,6 +452,25 @@ export default {
   margin-top: 0.25rem;
   font-size: 0.875rem;
   color: #6c757d;
+}
+
+.section-divider {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e9ecef;
+  font-size: 1.1rem;
+  color: #003366;
+}
+
+.form-group textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
 }
 
 .btn {

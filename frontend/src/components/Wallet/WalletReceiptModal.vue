@@ -29,13 +29,12 @@
           <div class="header-left">
             <img v-if="company.logo_url" :src="logoFullUrl" alt="Logo" class="main-logo" />
             <img v-else src="@/assets/logo.png" alt="Logo" class="main-logo" />
-            <p class="slogan">Computadores, Impresoras, Suministros y Mantenimiento</p>
-            <p class="slogan-bold">Todo con Garantía Directa y al Mejor Precio</p>
+            <p v-if="company.slogan" class="slogan">{{ company.slogan }}</p>
           </div>
           <div class="header-right">
             <div class="owner-info">
-              <h1 class="owner-name">{{ company.owner_name || 'GERMÁN ALEXANDER CASTILLO BURBANO' }}</h1>
-              <p class="nit-info">NIT: {{ company.nit }}-{{ company.dv || '0' }} / NO RESPONSABLE DE IVA</p>
+              <h1 class="owner-name">{{ company.legal_representative || company.name }}</h1>
+              <p class="nit-info">NIT: {{ company.nit }}-{{ company.dv || '0' }} / {{ regimenLabel }}</p>
             </div>
             
             <div class="invoice-box">
@@ -93,6 +92,9 @@
         <div class="footer-note mt-5 text-center">
           <p><em>Este documento es un comprobante de ingreso de dinero a favor del cliente en su monedero electrónico.</em></p>
         </div>
+        <div v-if="company.invoice_footer_note" class="legal-disclaimer">
+          <p style="white-space: pre-line;">{{ company.invoice_footer_note }}</p>
+        </div>
       </div>
 
       <!-- POS Layout (Ticket) -->
@@ -117,6 +119,15 @@
         <div class="pos-divider">--------------------------------</div>
         <div class="pos-totals">
           <div class="pos-row"><span>TOTAL RECIBIDO:</span> <span>{{ formatCOP(transaction.amount) }}</span></div>
+        </div>
+        <div v-if="company.address || company.phone || company.website || company.email" class="pos-contact">
+          <p v-if="company.address">📍 {{ company.address }}</p>
+          <p v-if="company.phone">📞 {{ company.phone }}</p>
+          <p v-if="company.website">🌐 {{ company.website }}</p>
+          <p v-if="company.email">✉ {{ company.email }}</p>
+        </div>
+        <div v-if="company.invoice_footer_note" style="font-size: 8px; text-align: justify; margin: 5px 0; white-space: pre-line;">
+          {{ company.invoice_footer_note }}
         </div>
         <div class="pos-footer" style="margin-top: 20px;">
           ¡Gracias por su confianza!
@@ -156,6 +167,15 @@ export default {
     },
     amountInWords() {
       return '';
+    },
+    regimenLabel() {
+      const labels = {
+        COMUN: 'RÉGIMEN COMÚN',
+        SIMPLE: 'RÉGIMEN SIMPLE DE TRIBUTACIÓN',
+        ESPECIAL: 'RÉGIMEN ESPECIAL',
+        NO_RESPONSABLE: 'NO RESPONSABLE DE IVA'
+      };
+      return labels[this.company.regimen] || this.company.regimen || '';
     }
   },
   methods: {
@@ -347,4 +367,20 @@ export default {
   padding-top: 8px;
 }
 .footer-note { color: #666; font-size: 0.8rem; }
+
+.legal-disclaimer {
+  margin-top: 20px;
+  padding-top: 10px;
+  border-top: 1px solid #003366;
+  font-size: 8px;
+  color: #444;
+  text-align: justify;
+}
+
+.pos-contact {
+  font-size: 10px;
+  text-align: center;
+  margin: 5px 0;
+}
+.pos-contact p { margin: 2px 0; }
 </style>
