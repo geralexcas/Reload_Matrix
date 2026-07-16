@@ -60,9 +60,23 @@ def _tenant_auto_filter(execute_state):
         return
 
     def _criteria(cls):
+        # Obtener el nombre de la clase de forma segura
+        # cls puede ser un InstrumentedAttribute o un Mapper en algunos contextos
+        try:
+            class_name = cls.__name__
+        except AttributeError:
+            # Si cls es un Mapper u otro objeto SQLAlchemy
+            if hasattr(cls, "class_"):
+                class_name = cls.class_.__name__
+            elif hasattr(cls, "entity"):
+                class_name = cls.entity.__name__
+            else:
+                # No podemos determinar la clase, no filtrar
+                return None
+
         if not hasattr(cls, "company_id"):
             return None
-        if cls.__name__ in _EXCLUDE_FROM_AUTO_FILTER:
+        if class_name in _EXCLUDE_FROM_AUTO_FILTER:
             return None
         return cls.company_id == tenant_id
 

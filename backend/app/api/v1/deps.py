@@ -127,7 +127,8 @@ def require_permission(module: str, action: str):
         current_user: user_model.User = Depends(get_current_active_user),
         db: Session = Depends(get_db),
     ) -> user_model.User:
-        if current_user.is_superuser and not current_user.company_id:
+        # Los superusuarios bypassean la verificación de permisos
+        if current_user.is_superuser:
             return current_user
 
         from app.models.sql.audit import Permission
