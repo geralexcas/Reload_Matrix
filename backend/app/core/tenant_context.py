@@ -9,10 +9,6 @@ current_tenant_id: ContextVar[int | None] = ContextVar(
     "current_tenant_id", default=None
 )
 
-# ponytail: User and AuditLog have company_id but are scoped by the auth/admin
-# layer (not auto-filtered) — User queries resolve identity, AuditLog is admin-only.
-_EXCLUDE_FROM_AUTO_FILTER = {"User", "AuditLog"}
-
 
 @event.listens_for(Engine, "before_cursor_execute")
 def _set_tenant_guc(conn, cursor, statement, parameters, context, executemany):
@@ -60,23 +56,21 @@ def _tenant_auto_filter(execute_state):
         return
 
     def _criteria(cls):
-        # Obtener el nombre de la clase de forma segura
-        # cls puede ser un InstrumentedAttribute o un Mapper en algunos contextos
         try:
             class_name = cls.__name__
         except AttributeError:
-            # Si cls es un Mapper u otro objeto SQLAlchemy
             if hasattr(cls, "class_"):
                 class_name = cls.class_.__name__
             elif hasattr(cls, "entity"):
                 class_name = cls.entity.__name__
             else:
-                # No podemos determinar la clase, no filtrar
                 return None
 
+        # ponytail: `in` operator — SQLAlchemy lambda tracker lo reescribe
+        # como SQL contains() cuando cls es una tracked expression.
         if not isinstance(class_name, str) or not hasattr(cls, "company_id"):
             return None
-        if class_name in _EXCLUDE_FROM_AUTO_FILTER:
+        if class_name == "User" or class_name == "AuditLog":
             return None
         return cls.company_id == tenant_id
 
