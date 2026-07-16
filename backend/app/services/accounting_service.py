@@ -779,10 +779,18 @@ class AccountingService:
                 tax_rate_val = item.tax_rate if item.tax_rate is not None else Decimal("0.00")
                 tax_rate = self._parse_tax_rate(tax_rate_val)
 
-                if item_tax_amount > 0 and self._is_approx_equal(tax_rate, Decimal("0.19")):
+                # If tax_amount is 0 but tax_rate is not 0, calculate tax from line_total
+                if item_tax_amount == 0 and tax_rate > 0:
+                    # Calculate tax amount from line_total and tax_rate
+                    item_tax_amount = line_base * tax_rate
+                    line_base = item.line_total - item_tax_amount
+                    if line_base < 0:
+                        line_base = Decimal("0.00")
+
+                if self._is_approx_equal(tax_rate, Decimal("0.19")):
                     base_iva_19 += line_base
                     iva_19 += item_tax_amount
-                elif item_tax_amount > 0 and self._is_approx_equal(tax_rate, Decimal("0.05")):
+                elif self._is_approx_equal(tax_rate, Decimal("0.05")):
                     base_iva_5 += line_base
                     iva_5 += item_tax_amount
                 else:
@@ -825,7 +833,7 @@ class AccountingService:
 
         invoices = (
             self.db.query(Invoice)
-            .options(joinedload(Invoice.partner), joinedload(Invoice.items))
+            .options(joinedload(Invoice.partner))
             .filter(and_(*date_filter))
             .all()
         )
@@ -952,7 +960,7 @@ class AccountingService:
 
         invoices = (
             self.db.query(Invoice)
-            .options(joinedload(Invoice.partner), joinedload(Invoice.items))
+            .options(joinedload(Invoice.partner))
             .filter(and_(*date_filter))
             .all()
         )
@@ -968,7 +976,7 @@ class AccountingService:
 
         dedicated_purchases = (
             self.db.query(Purchase)
-            .options(joinedload(Purchase.partner), joinedload(Purchase.items))
+            .options(joinedload(Purchase.partner))
             .filter(and_(*p_date_filter))
             .all()
         )
@@ -1296,7 +1304,7 @@ class AccountingService:
 
         sales_invoices = (
             self.db.query(Invoice)
-            .options(joinedload(Invoice.partner), joinedload(Invoice.items))
+            .options(joinedload(Invoice.partner))
             .filter(and_(*date_filter_sales))
             .order_by(Invoice.issue_date)
             .all()
@@ -1305,7 +1313,7 @@ class AccountingService:
 
         purchase_invoices = (
             self.db.query(Invoice)
-            .options(joinedload(Invoice.partner), joinedload(Invoice.items))
+            .options(joinedload(Invoice.partner))
             .filter(and_(*date_filter_purchases))
             .order_by(Invoice.issue_date)
             .all()
@@ -1459,7 +1467,7 @@ class AccountingService:
 
         invoices = (
             self.db.query(Invoice)
-            .options(joinedload(Invoice.partner), joinedload(Invoice.items))
+            .options(joinedload(Invoice.partner))
             .filter(and_(*inv_filter))
             .all()
         )
@@ -1474,7 +1482,7 @@ class AccountingService:
 
         purchases = (
             self.db.query(Purchase)
-            .options(joinedload(Purchase.partner), joinedload(Purchase.items))
+            .options(joinedload(Purchase.partner))
             .filter(and_(*pur_filter))
             .all()
         )
@@ -1610,7 +1618,7 @@ class AccountingService:
 
         invoices = (
             self.db.query(Invoice)
-            .options(joinedload(Invoice.partner), joinedload(Invoice.items))
+            .options(joinedload(Invoice.partner))
             .filter(and_(*date_filter))
             .order_by(Invoice.issue_date)
             .all()
