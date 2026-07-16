@@ -163,12 +163,11 @@ class TestFacturacionAtomicidad:
             json={
                 "name": "Cliente Test",
                 "nit": "900123456",
-                "dv": "7",
+                "dv": "8",
                 "email": "cliente@test.com",
                 "phone": "3001234567",
                 "address": "Calle 123",
                 "responsibility_fiscal": "NO RESPONSABLE",
-                "person_type": "NATURAL",
             },
             headers=auth_headers,
         )
