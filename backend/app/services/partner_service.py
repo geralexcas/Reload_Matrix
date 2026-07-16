@@ -3,7 +3,6 @@ from typing import List, Optional
 from app.models.sql import partners as partner_model
 from app.models.sql import company as company_model
 from app.schemas import partners as partner_schema
-from app.core.config import settings
 import re
 
 
