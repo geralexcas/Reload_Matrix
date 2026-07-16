@@ -74,7 +74,7 @@ def _tenant_auto_filter(execute_state):
                 # No podemos determinar la clase, no filtrar
                 return None
 
-        if not hasattr(cls, "company_id"):
+        if not isinstance(class_name, str) or not hasattr(cls, "company_id"):
             return None
         if class_name in _EXCLUDE_FROM_AUTO_FILTER:
             return None
