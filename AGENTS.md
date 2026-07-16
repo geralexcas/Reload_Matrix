@@ -77,7 +77,9 @@ pytest tests/unit/test_security.py              # Un archivo especifico
 
 **Configuracion de pruebas** (`backend/pyproject.toml`):
 - Framework: pytest con httpx (TestClient)
-- DB de prueba: SQLite en memoria (StaticPool), no PostgreSQL
+- DB de prueba local: SQLite en memoria (`sqlite:///:memory:`, StaticPool), no PostgreSQL. SQLite no enforcea RLS ni `with_for_update()`.
+- DB de prueba CI (`.github/workflows/ci.yml`): PostgreSQL 15 con migraciones aplicadas (RLS activa).
+- **Limitacion SQLite:** Row-Level Security no se puede probar en SQLite; los tests de RLS (`tests/unit/test_tenant_isolation.py::TestRLSBypassBlocked`) saltan a menos que `TEST_DB=postgres`. La Capa 1 (ORM auto-filter) sí se prueba en SQLite.
 - Cobertura minima: 80% (`fail_under = 80`)
 - Fixtures en `tests/conftest.py`: `db_session`, `client`, `test_company`, `test_user`, `auth_headers`
 

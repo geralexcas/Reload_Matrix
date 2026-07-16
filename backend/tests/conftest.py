@@ -1,9 +1,10 @@
+import os
 import pytest
 from datetime import datetime, timedelta, timezone
 from app.models.sql.fiscal_period import FiscalPeriod
 from datetime import date
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -11,14 +12,59 @@ from app.core.database import Base, get_db
 from app.main import app
 from app.core import security
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+# ponytail: SQLite en memoria por defecto (rapido, sin RLS). Si TEST_DB=postgres
+# (CI), usar DATABASE_URL y aplicar politicas RLS para ejercer la Capa 2 en
+# TestRLSBypassBlocked. AGENTS.md describe la limitacion SQLite/RLS.
+TEST_DB = os.getenv("TEST_DB", "").lower()
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+if TEST_DB == "postgres":
+    SQLALCHEMY_DATABASE_URL = os.getenv(
+        "DATABASE_URL", "postgresql://test_user:test_pass@localhost:5432/test_db"
+    )
+    engine = create_engine(SQLALCHEMY_DATABASE_URL)
+else:
+    SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+# Tablas tenant-scoped con RLS (espejo de alembic/versions/9f8e7d6c5b4a)
+# ponytail: en lugar de correr alembic upgrade head, inyectamos el SQL de RLS
+# inline tras create_all cuando TEST_DB=postgres. Permite reset por test sin
+# pelear con la tabla alembic_version.
+_RLS_TENANT_TABLES = [
+    "products", "product_price_history", "inventory_movements", "partners",
+    "fiscal_periods", "invoices", "invoice_resolutions", "credit_debit_notes",
+    "wallets", "dian_billing_ranges", "repair_orders", "warranties",
+    "technicians", "purchases", "chart_of_accounts", "journal_entries",
+    "treasury_transactions", "cash_accounts", "bank_accounts",
+    "bank_reconciliations", "check_register",
+]
+
+
+def _apply_rls_policies(eng):
+    """Habilita + fuerza RLS y crea la politica tenant_isolation en cada tabla
+    tenant-scoped. Idempotente (DROP POLICY IF EXISTS antes de CREATE)."""
+    with eng.begin() as conn:
+        for table in _RLS_TENANT_TABLES:
+            conn.execute(text(f"DROP POLICY IF EXISTS tenant_isolation ON {table}"))
+            conn.execute(text(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY"))
+            conn.execute(text(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY"))
+            conn.execute(text(
+                f"CREATE POLICY tenant_isolation ON {table} "
+                f"USING (company_id::text = current_setting('app.tenant_id', true))"
+            ))
+
+
+def _drop_rls_policies(eng):
+    with eng.begin() as conn:
+        for table in _RLS_TENANT_TABLES:
+            conn.execute(text(f"DROP POLICY IF EXISTS tenant_isolation ON {table}"))
 
 
 @pytest.fixture(scope="function")
@@ -28,11 +74,15 @@ def db_session():
     from app.core.tenant_context import current_tenant_id
     current_tenant_id.set(None)
     Base.metadata.create_all(bind=engine)
+    if TEST_DB == "postgres":
+        _apply_rls_policies(engine)
     session = TestingSessionLocal()
     try:
         yield session
     finally:
         session.close()
+        if TEST_DB == "postgres":
+            _drop_rls_policies(engine)
         Base.metadata.drop_all(bind=engine)
         current_tenant_id.set(None)
 

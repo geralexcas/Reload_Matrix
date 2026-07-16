@@ -6,6 +6,7 @@ Phase 0 hardening: ORM auto-filter + verify_company_membership fix,
 and the Phase 2 expansion across all modules.
 """
 
+import os
 import pytest
 
 
@@ -331,8 +332,8 @@ class TestCrossTenantReadBlocked:
 # ===== Phase 1 regression: Row-Level Security blocks ORM bypass (PG only) =====
 
 @pytest.mark.skipif(
-    True,
-    reason="requires PostgreSQL + applied RLS migration; SQLite test harness skips. Run manually against PG.",
+    os.getenv("TEST_DB") != "postgres",
+    reason="requires PostgreSQL + applied RLS policies; SQLite harness skips. Set TEST_DB=postgres and apply RLS migrations in CI.",
 )
 class TestRLSBypassBlocked:
     """Raw SQL that bypasses the ORM auto-filter must STILL be filtered by
