@@ -13,36 +13,36 @@ class PartnerService:
 
     def _validate_nit_dv(self, nit: str, dv: str) -> bool:
         """
-        Validate Colombian NIT with verification digit (DV)
-        Rules:
-        - Personas Naturales: 6-10 dígitos (Cédula)
-        - Personas Jurídicas: 9 dígitos
+        Validate Colombian NIT with verification digit (DV).
+
+        Algoritmo DIAN Modulo 11, longitud variable:
+        - Pesos (secuencia extendida de la Orden Administrativa 4 de 1989):
+          [71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3]
+        - Aplicados de DERECHA a IZQUIERDA (digito menos significativo
+          recibe el primer peso).  Si el NIT es mas largo que la lista,
+          los pesos se ciclan desde el inicio.
+        - Regla DV: remainder == 0 -> "0", remainder == 1 -> "K",
+          resto -> str(11 - remainder).
+
+        Esta implementacion debe coincidir con el frontend
+        (frontend/src/utils/validators.js::calculateDV) para no aceptar
+        en backend lo que el cliente rechaza en UI, ni viceversa.
         """
-        clean_nit = re.sub(r"[-\s]", "", nit)
+        clean_nit = re.sub(r"[-\s.]", "", nit or "")
 
-        if not clean_nit.isdigit() or len(clean_nit) < 6:
-            return False
-        
-        if len(clean_nit) > 10:
+        if not clean_nit.isdigit() or len(clean_nit) < 5:
             return False
 
-        if len(dv) != 1 or not (dv.isdigit() or dv.upper() == 'K'):
+        if dv is None or len(dv) != 1 or not (dv.isdigit() or dv.upper() == 'K'):
             return False
 
         dv = dv.upper()
 
-        nit_int = int(clean_nit)
-        if nit_int < 100000:
-            return False
-
+        weights = [71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3]
+        reversed_digits = clean_nit[::-1]
         total = 0
-        weights = [71, 69, 67, 59, 53, 47, 43, 41, 37, 31, 29, 23, 19, 17, 13, 7, 5, 3, 2]
-
-        # Aplicar pesos de izquierda a derecha (algoritmo colombiano Módulo 11)
-        for i, digit in enumerate(clean_nit):
-            if i >= len(weights):
-                break
-            total += int(digit) * weights[i]
+        for i, digit in enumerate(reversed_digits):
+            total += int(digit) * weights[i % len(weights)]
 
         remainder = total % 11
 

@@ -19,10 +19,12 @@ export function calculateDV(nit) {
   }
   const remainder = sum % 11
   let dv
-  if (remainder >= 2) {
-    dv = 11 - remainder
+  if (remainder === 0) {
+    dv = '0'
+  } else if (remainder === 1) {
+    dv = 'K'
   } else {
-    dv = remainder
+    dv = 11 - remainder
   }
   return dv.toString()
 }
