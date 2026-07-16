@@ -163,14 +163,14 @@ class InvoiceWithItemsCreate(BaseModel):
             raise ValueError("Invoice must have at least one item")
         return v
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "extra": "forbid"}
 
 
 # For responses, we might want to include the items
 class InvoiceWithItemsResponse(InvoiceResponse):
     items: List[InvoiceItemResponse] = []
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "extra": "ignore"}
 
 
 # Credit / Debit Note Schemas

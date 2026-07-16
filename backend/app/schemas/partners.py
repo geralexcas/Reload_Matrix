@@ -55,7 +55,7 @@ class PartnerBase(BaseModel):
             raise ValueError(f"El campo responsibility_fiscal '{v}' no es válido. Debe ser uno de los siguientes valores exactos: {', '.join(allowed)}")
         return v
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "extra": "forbid"}
 
 
 class PartnerCreate(PartnerBase):
@@ -68,4 +68,7 @@ class PartnerResponse(PartnerBase):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    # ponytail: Response hereda de PartnerBase (con extra="forbid") pero se construye
+    # desde el ORM (from_attributes); los atributos extra del modelo NO cuentan como
+    # "extra fields" de Pydantic, pero liberamos la restricción por seguridad.
+    model_config = {"from_attributes": True, "extra": "ignore"}

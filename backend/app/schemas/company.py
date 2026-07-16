@@ -41,7 +41,7 @@ class CompanyBase(BaseModel):
             raise ValueError(f"El campo regimen '{v}' no es válido. Debe ser uno de los siguientes valores exactos: {', '.join(allowed)}")
         return v
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "extra": "forbid"}
 
 
 class CompanyCreate(CompanyBase):
@@ -74,7 +74,7 @@ class CompanyResponse(CompanyBase):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "extra": "ignore"}
 
 
 CompanyCreate.model_rebuild()

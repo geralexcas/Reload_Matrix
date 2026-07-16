@@ -55,7 +55,7 @@ class ProductBase(BaseModel):
             raise ValueError("Amounts must be non-negative")
         return v
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "extra": "forbid"}
 
 
 class ProductCreate(ProductBase):
@@ -74,4 +74,4 @@ class ProductResponse(ProductBase):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "extra": "ignore"}
