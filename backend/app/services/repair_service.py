@@ -282,7 +282,7 @@ class RepairService:
         from sqlalchemy.orm import joinedload
         return (
             self.db.query(RepairOrder)
-            .options(joinedload(RepairOrder.items), joinedload(RepairOrder.partner))
+            .options(joinedload(RepairOrder.partner))
             .filter(RepairOrder.company_id == company_id)
             .offset(skip)
             .limit(limit)
@@ -311,7 +311,6 @@ class RepairService:
             .options(
                 joinedload(RepairOrder.partner),
                 joinedload(RepairOrder.technician),
-                joinedload(RepairOrder.items),
             )
             .filter(
                 RepairOrder.id == repair_order_id,

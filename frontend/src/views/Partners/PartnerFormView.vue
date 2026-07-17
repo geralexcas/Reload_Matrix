@@ -177,13 +177,15 @@ export default {
       loading.value = true
       try {
         const payload = {
-          ...form.value,
+          name: form.value.name,
+          partner_type: form.value.partner_type,
+          responsibility_fiscal: form.value.responsibility_fiscal,
           nit: form.value.document_number,
-          document_number: form.value.document_number,
           dv: form.value.dv || null,
           email: form.value.email || null,
           phone: form.value.phone || null,
-          address: form.value.address || null
+          address: form.value.address || null,
+          is_active: form.value.is_active
         }
 
         if (isEditing.value) {
