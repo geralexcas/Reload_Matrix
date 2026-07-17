@@ -66,11 +66,15 @@ class PartnerService:
         if not db_company:
             raise ValueError("Company not found")
 
-        if partner.dv and not self._validate_nit_dv(partner.nit, partner.dv):
+        if partner.dv and not partner.force_dv and not self._validate_nit_dv(partner.nit, partner.dv):
             raise ValueError("Invalid NIT or verification digit (DV)")
 
+        # Remove force_dv from model dump as it's not in the SQL model
+        partner_data = partner.model_dump()
+        partner_data.pop('force_dv', None)
+
         db_partner = partner_model.Partner(
-            **partner.model_dump(), company_id=company_id
+            **partner_data, company_id=company_id
         )
         self.db.add(db_partner)
         self.db.commit()
@@ -106,10 +110,13 @@ class PartnerService:
         db_partner = self.get_partner_by_id(partner_id, company_id)
         if db_partner:
             # Validate NIT and DV if they are being updated
-            if partner.dv and not self._validate_nit_dv(partner.nit, partner.dv):
+            if partner.dv and not partner.force_dv and not self._validate_nit_dv(partner.nit, partner.dv):
                 raise ValueError("Invalid NIT or verification digit (DV)")
 
-            for key, value in partner.model_dump().items():
+            partner_data = partner.model_dump()
+            partner_data.pop('force_dv', None)
+
+            for key, value in partner_data.items():
                 setattr(db_partner, key, value)
             self.db.commit()
             self.db.refresh(db_partner)

@@ -59,7 +59,8 @@ class PartnerBase(BaseModel):
 
 
 class PartnerCreate(PartnerBase):
-    pass
+    force_dv: bool = False
+
 
 
 class PartnerResponse(PartnerBase):

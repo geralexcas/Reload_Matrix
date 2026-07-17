@@ -32,14 +32,20 @@
               </select>
             </div>
 
-            <div class="form-group">
-              <label>Número de Documento / NIT *</label>
-              <div class="nit-group">
-                <input v-model="form.document_number" type="text" required placeholder="123456789" class="premium-input" />
-                <span v-if="form.document_type === 'NIT'" class="dv-separator">-</span>
-                <input v-if="form.document_type === 'NIT'" v-model="form.dv" type="text" maxlength="1" placeholder="DV" class="premium-input dv-input" />
-              </div>
-            </div>
+             <div class="form-group">
+               <label>Número de Documento / NIT *</label>
+               <div class="nit-group">
+                 <input v-model="form.document_number" type="text" required placeholder="123456789" class="premium-input" />
+                 <span v-if="form.document_type === 'NIT'" class="dv-separator">-</span>
+                 <input v-if="form.document_type === 'NIT'" v-model="form.dv" type="text" maxlength="1" placeholder="DV" class="premium-input dv-input" />
+               </div>
+               <div v-if="form.document_type === 'NIT' && dvWarning" class="dv-warning">
+                 <label class="checkbox-container">
+                   <input type="checkbox" v-model="form.force_dv" />
+                   <span class="warning-text">El DV no coincide con el cálculo estándar. ¿Desea forzar el registro?</span>
+                 </label>
+               </div>
+             </div>
 
             <div class="form-group">
               <label>Tipo de Socio *</label>
@@ -97,6 +103,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
+import { calculateDV } from '@/utils/validators'
 
 export default {
   name: 'PartnerFormView',
@@ -114,12 +121,21 @@ export default {
       document_type: 'CC',
       document_number: '',
       dv: '',
+      force_dv: false,
       partner_type: 'CUSTOMER',
       responsibility_fiscal: 'NO RESPONSABLE',
       email: '',
       phone: '',
       address: '',
       is_active: true
+    })
+
+    const dvWarning = computed(() => {
+      if (form.value.document_type !== 'NIT' || !form.value.document_number || !form.value.dv) {
+        return false
+      }
+      const expected = calculateDV(form.value.document_number)
+      return form.value.dv.toUpperCase() !== expected
     })
 
     const goBack = () => {
@@ -182,11 +198,13 @@ export default {
           responsibility_fiscal: form.value.responsibility_fiscal,
           nit: form.value.document_number,
           dv: form.value.dv || null,
+          force_dv: form.value.force_dv,
           email: form.value.email || null,
           phone: form.value.phone || null,
           address: form.value.address || null,
           is_active: form.value.is_active
         }
+
 
         if (isEditing.value) {
           await store.dispatch('partners/updatePartner', {
@@ -239,11 +257,13 @@ export default {
 
     return {
       form,
+      dvWarning,
       isEditing,
       loading,
       goBack,
       savePartner
     }
+
   }
 }
 </script>
@@ -350,9 +370,26 @@ export default {
   font-weight: bold;
 }
 
-.dv-input {
-  width: 60px;
-  text-align: center;
+.dv-warning {
+  margin-top: 0.5rem;
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  padding: 0.5rem;
+  border-radius: 8px;
+}
+
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #92400e;
+  font-weight: 500;
+}
+
+.checkbox-container input {
+  cursor: pointer;
 }
 
 .form-actions {
