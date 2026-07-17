@@ -284,6 +284,7 @@ class RepairService:
             self.db.query(RepairOrder)
             .options(joinedload(RepairOrder.partner))
             .filter(RepairOrder.company_id == company_id)
+            .order_by(RepairOrder.created_at.desc())  # Most recent orders first
             .offset(skip)
             .limit(limit)
             .all()

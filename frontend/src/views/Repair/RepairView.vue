@@ -75,6 +75,11 @@
             </tr>
           </tbody>
         </table>
+        <!-- Back to top button - appears when list is long -->
+        <button v-if="filteredOrders.length > 10" @click="scrollToTop" class="btn-back-to-top" title="Volver arriba">
+          <i class="fas fa-arrow-up"></i>
+          <span class="btn-tooltip">Volver arriba</span>
+        </button>
         <div v-else class="empty-state">
           <i class="fas fa-search fa-2x mb-3"></i>
           <p v-if="searchQuery">No se encontraron órdenes para <strong>"{{ searchQuery }}"</strong>.</p>
@@ -527,6 +532,13 @@ export default {
       selectedOrder.value = null
     }
 
+    const scrollToTop = () => {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      })
+    }
+
     onMounted(() => {
       fetchOrders()
     })
@@ -547,6 +559,7 @@ export default {
       searchQuery,
       filteredOrders,
       highlightMatch,
+      scrollToTop,
       openCreateModal,
       closeCreateModal,
       closeOrderModal,
@@ -1010,5 +1023,54 @@ export default {
   background-color: #fff8e1;
   color: #f57f17;
   border: 1px solid #ffe082;
+}
+
+/* Back to top button */
+.btn-back-to-top {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  z-index: 100;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.btn-back-to-top:hover {
+  background-color: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+.btn-back-to-top .btn-tooltip {
+  position: absolute;
+  left: 100%;
+  margin-left: 10px;
+  background-color: #333;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.btn-back-to-top:hover .btn-tooltip {
+  opacity: 1;
+  visibility: visible;
 }
 </style>
