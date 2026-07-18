@@ -77,9 +77,29 @@ class PartnerService:
             **partner_data, company_id=company_id
         )
         self.db.add(db_partner)
-        self.db.commit()
-        self.db.refresh(db_partner)
-        return db_partner
+        
+        try:
+            self.db.commit()
+            self.db.refresh(db_partner)
+            
+            # Verify the partner was actually saved by querying it back
+            verified_partner = (
+                self.db.query(partner_model.Partner)
+                .filter(partner_model.Partner.id == db_partner.id)
+                .first()
+            )
+            
+            if not verified_partner:
+                # If verification fails, rollback and raise an error
+                self.db.rollback()
+                raise ValueError("Partner creation failed: record not persisted in database")
+                
+            return db_partner
+            
+        except Exception as e:
+            # Ensure we rollback on any error
+            self.db.rollback()
+            raise ValueError(f"Database error during partner creation: {str(e)}")
 
     def get_partners(
         self, company_id: int, skip: int = 0, limit: int = 100

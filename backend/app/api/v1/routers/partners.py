@@ -40,9 +40,37 @@ def create_partner(
 
     service = partner_service.PartnerService(db)
     try:
-        return service.create_partner(partner, company_id)
+        created_partner = service.create_partner(partner, company_id)
+        
+        # Additional verification: ensure the partner can be retrieved
+        verify_partner = (
+            db.query(partner_model.Partner)
+            .filter(
+                partner_model.Partner.id == created_partner.id,
+                partner_model.Partner.company_id == company_id
+            )
+            .first()
+        )
+        
+        if not verify_partner:
+            # Log the issue for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Partner creation verification failed for partner_id={created_partner.id}, company_id={company_id}")
+            raise HTTPException(
+                status_code=500, 
+                detail="Partner creation failed: unable to verify record in database"
+            )
+            
+        return created_partner
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        # Catch any other database errors
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Database error: {str(e)}"
+        )
 
 
 @router.get("/", response_model=List[partner_schema.PartnerResponse])
