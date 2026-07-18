@@ -77,7 +77,7 @@ def create_partner(
 def read_partners(
     company_id: int,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 1000,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(get_current_active_user),

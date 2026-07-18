@@ -15,7 +15,7 @@ const getters = {
 }
 
 const actions = {
-  async fetchPartners({ commit }, { companyId, skip = 0, limit = 100 } = {}) {
+  async fetchPartners({ commit }, { companyId, skip = 0, limit = 1000 } = {}) {
     commit('setLoading', true)
     commit('clearError')
     try {
@@ -55,6 +55,9 @@ const actions = {
         params: { company_id: companyId }
       })
       commit('setPartner', res.data)
+      // ponytail: append to list so callers reading state.partners see the new entry
+      // without needing a full fetchPartners roundtrip.
+      commit('addPartnerToList', res.data)
       return res
     } catch (err) {
       commit('setError', err.response?.data?.detail || 'Error al crear el socio')
@@ -112,6 +115,11 @@ const mutations = {
   },
   setPartner(state, payload) {
     state.partner = payload
+  },
+  addPartnerToList(state, payload) {
+    if (payload && Array.isArray(state.partners)) {
+      state.partners.push(payload)
+    }
   }
 }
 

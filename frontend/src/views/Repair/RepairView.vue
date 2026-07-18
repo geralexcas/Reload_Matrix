@@ -405,9 +405,9 @@ export default {
       }
     }
 
-    const openCreateModal = () => {
+    const openCreateModal = async () => {
       showCreateModal.value = true
-      fetchPartners()
+      await fetchPartners()
       fetchTechnicians()
 
       // Recover form if exists
@@ -541,6 +541,11 @@ export default {
 
     onMounted(() => {
       fetchOrders()
+      // ponytail: si volvemos de crear un partner (repairFormCache presente),
+      // reabrimos el modal con el form previo y la lista de partners fresca.
+      if (sessionStorage.getItem('repairFormCache')) {
+        openCreateModal()
+      }
     })
 
     return {

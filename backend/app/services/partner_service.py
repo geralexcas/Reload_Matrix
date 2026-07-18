@@ -102,11 +102,12 @@ class PartnerService:
             raise ValueError(f"Database error during partner creation: {str(e)}")
 
     def get_partners(
-        self, company_id: int, skip: int = 0, limit: int = 100
+        self, company_id: int, skip: int = 0, limit: int = 1000
     ) -> List[partner_model.Partner]:
         return (
             self.db.query(partner_model.Partner)
             .filter(partner_model.Partner.company_id == company_id)
+            .order_by(partner_model.Partner.name.asc())
             .offset(skip)
             .limit(limit)
             .all()
