@@ -55,7 +55,7 @@
               </td>
               <td>
                 <span :class="['badge', `badge-${(order.status || 'received').toLowerCase().replace(' ', '_')}`]">
-                  {{ order.status || 'RECIBIDO' }}
+                  {{ $t(`common.${(order.status || 'received').toLowerCase()}`) }}
                 </span>
               </td>
               <td class="text-right">${{ Number(order.total_amount || 0).toLocaleString() }}</td>
@@ -260,7 +260,7 @@
           <div class="detail-row">
             <span class="detail-label">Estado:</span>
             <span :class="['badge', `badge-${selectedOrder.status?.toLowerCase().replace('_', '')}`]">
-              {{ selectedOrder.status }}
+              {{ $t(`common.${selectedOrder.status?.toLowerCase()}`) }}
             </span>
           </div>
           <div class="detail-row">

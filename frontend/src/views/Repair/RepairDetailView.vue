@@ -29,7 +29,7 @@
     <div v-else class="detail-content">
       <div class="status-bar">
         <span :class="['badge', `badge-${order?.status?.toLowerCase().replace('_', '')}`]">
-          {{ order?.status }}
+          {{ $t(`common.${order?.status?.toLowerCase()}`) }}
         </span>
         <span class="warranty-badge" :class="{ active: order?.warranty_applied }">
           {{ order?.warranty_applied ? '🎧 Garantía Aplicada' : 'Sin Garantía' }}
