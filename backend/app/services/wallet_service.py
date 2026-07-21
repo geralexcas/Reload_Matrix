@@ -67,6 +67,9 @@ class WalletService:
         self, wallet_id: int, amount: Decimal, description: str, company_id: int, user_id: Optional[int] = None,
         account_type: Optional[str] = None, account_id: Optional[int] = None, commit: bool = True
     ) -> WalletTransaction:
+        if amount <= 0:
+            raise ValueError("El monto del depósito debe ser mayor a cero")
+
         wallet = self.get_wallet_by_id(wallet_id, company_id, lock=True)
         if not wallet:
             raise ValueError("Wallet not found")
@@ -170,6 +173,9 @@ class WalletService:
         self, wallet_id: int, amount: Decimal, description: str, company_id: int, user_id: Optional[int] = None,
         account_type: Optional[str] = None, account_id: Optional[int] = None, commit: bool = True
     ) -> WalletTransaction:
+        if amount <= 0:
+            raise ValueError("El monto del retiro debe ser mayor a cero")
+
         wallet = self.get_wallet_by_id(wallet_id, company_id, lock=True)
         if not wallet:
             raise ValueError("Wallet not found")

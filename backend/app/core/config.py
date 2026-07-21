@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = ""
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # CORS
     ALLOWED_ORIGINS: str = "http://localhost:8081,http://localhost:8080"

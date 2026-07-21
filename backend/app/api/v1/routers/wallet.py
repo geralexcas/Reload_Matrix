@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from decimal import Decimal
@@ -8,7 +8,7 @@ from app.models.sql import user as user_model
 from app.schemas import wallet as wallet_schema
 from app.services import wallet_service
 from app.core.database import get_db
-from app.api.v1.deps import get_current_active_user, verify_company_membership
+from app.api.v1.deps import verify_company_membership, require_permission
 
 router = APIRouter()
 
@@ -23,7 +23,7 @@ def create_wallet(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("wallet", "create")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -44,7 +44,7 @@ def read_wallets(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("wallet", "read")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -64,7 +64,7 @@ def read_wallet(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("wallet", "read")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -88,14 +88,14 @@ def read_wallet(
 )
 def deposit_to_wallet(
     wallet_id: int,
-    amount: Decimal,
     description: str,
     company_id: int,
+    amount: Decimal = Query(..., gt=0),
     account_type: Optional[str] = None,
     account_id: Optional[int] = None,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("wallet", "deposit")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -119,14 +119,14 @@ def deposit_to_wallet(
 )
 def withdraw_from_wallet(
     wallet_id: int,
-    amount: Decimal,
     description: str,
     company_id: int,
+    amount: Decimal = Query(..., gt=0),
     account_type: Optional[str] = None,
     account_id: Optional[int] = None,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("wallet", "withdraw")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -154,7 +154,7 @@ def read_wallet_transactions(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("wallet", "read")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -179,7 +179,7 @@ def add_loyalty_points(
     description: str = "",
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("wallet", "update")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -209,7 +209,7 @@ def redeem_loyalty_points(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("wallet", "update")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -238,7 +238,7 @@ def get_loyalty_summary(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("wallet", "read")),
 ):
     db_company = (
         db.query(company_model.Company)

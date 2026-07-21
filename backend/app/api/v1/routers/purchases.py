@@ -7,7 +7,7 @@ from app.models.sql import company as company_model, user as user_model
 from app.schemas import purchase as purchase_schema
 from app.services import purchase_service
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user, verify_company_membership
+from app.api.v1.deps import verify_company_membership, require_permission
 
 router = APIRouter()
 
@@ -33,7 +33,7 @@ def create_purchase(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("purchases", "create")),
 ):
     """
     Create a new purchase invoice with items.
@@ -60,8 +60,9 @@ def create_purchase(
 async def extract_from_pdf(
     file: UploadFile = File(...),
     company_id: int = Query(...),
+    company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("purchases", "create")),
 ):
     """
     Upload a purchase invoice PDF and extract supplier and items using Gemini.
@@ -90,7 +91,7 @@ def get_purchases(
     partner_id: Optional[int] = None,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("purchases", "read")),
 ):
     """Get all purchases for a company with optional filters"""
     _verify_company(db, company_id)
@@ -107,7 +108,7 @@ def get_purchase_statistics(
     end_date: Optional[date] = None,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("purchases", "read")),
 ):
     """Get purchase statistics for a company"""
     _verify_company(db, company_id)
@@ -121,7 +122,7 @@ def get_accounts_payable(
     days_ahead: int = Query(7, ge=1, le=90),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("purchases", "read")),
 ):
     """
     Get accounts payable summary including overdue and upcoming due invoices.
@@ -144,7 +145,7 @@ def get_purchase(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("purchases", "read")),
 ):
     """Get a specific purchase by ID"""
     _verify_company(db, company_id)
@@ -162,7 +163,7 @@ def update_purchase(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("purchases", "update")),
 ):
     """Update a purchase"""
     _verify_company(db, company_id)
@@ -182,7 +183,7 @@ def delete_purchase(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("purchases", "delete")),
 ):
     """Delete a purchase (only DRAFT status)"""
     _verify_company(db, company_id)
@@ -201,7 +202,7 @@ def cancel_purchase(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("purchases", "delete")),
 ):
     """
     Cancel a purchase and reverse its effects (inventory, accounting, treasury)
@@ -227,7 +228,7 @@ def register_payment(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("purchases", "create")),
 ):
     """
     Register a payment for a purchase.
@@ -251,7 +252,7 @@ def get_purchase_balance(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("purchases", "read")),
 ):
     """Get the remaining balance for a purchase"""
     _verify_company(db, company_id)

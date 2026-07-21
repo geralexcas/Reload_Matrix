@@ -48,7 +48,7 @@ def create_invoice_with_items(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("invoicing", "create")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -72,7 +72,7 @@ def read_invoices(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("invoicing", "read")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -92,7 +92,7 @@ def read_invoice(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("invoicing", "read")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -116,7 +116,7 @@ def update_invoice(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("invoicing", "update")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -139,7 +139,7 @@ def cancel_invoice(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("invoicing", "cancel")),
 ):
     """
     Cancel an invoice and reverse its effects (inventory, accounting, treasury)
@@ -170,7 +170,7 @@ def pay_invoice(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("invoicing", "create")),
 ):
     """
     Mark a pending invoice as paid.
@@ -211,7 +211,7 @@ def create_credit_debit_note(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("invoicing", "create")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -238,7 +238,7 @@ def list_credit_debit_notes(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("invoicing", "read")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -260,7 +260,7 @@ def get_credit_debit_note(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("invoicing", "read")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -286,7 +286,7 @@ def get_notes_by_invoice(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("invoicing", "read")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -306,7 +306,7 @@ def generate_note_xml(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("invoicing", "create")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -330,7 +330,7 @@ def send_note_to_dian(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("invoicing", "create")),
 ):
     db_company = (
         db.query(company_model.Company)

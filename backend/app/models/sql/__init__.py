@@ -12,5 +12,6 @@ from app.models.sql import (
     purchases,
     inventory_movement,
     product_price_history,
+    revoked_token,
 )
 from app.models.sql import accounting, fiscal_period

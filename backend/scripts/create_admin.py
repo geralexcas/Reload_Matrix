@@ -88,6 +88,11 @@ def create_admin_user(db, email, username, password, full_name, company_id=None,
     db.commit()
     db.refresh(user)
 
+    from app.services.permission_service import seed_permissions, assign_role_permissions
+    seed_permissions(db)
+    assign_role_permissions(db, user)
+    db.commit()
+
     print("✅ Usuario admin creado exitosamente:")
     print(f"   ID:        {user.id}")
     print(f"   Email:     {user.email}")

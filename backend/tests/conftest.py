@@ -67,6 +67,35 @@ def _drop_rls_policies(eng):
             conn.execute(text(f"DROP POLICY IF EXISTS tenant_isolation ON {table}"))
 
 
+def _seed_all_permissions(session):
+    """Idempotente: inserta el catalogo de permisos definido en
+    scripts/init_permissions.py.  Usado por fixtures de test para
+    asignar permisos granulares a usuarios (audit C2: tenant-superuser
+    ya no bypassea require_permission)."""
+    from app.models.sql.audit import Permission
+
+    matrix = {
+        "company":    ["read", "create", "update"],
+        "partners":   ["read", "create", "update", "delete", "manage"],
+        "inventory":  ["read", "create", "update", "delete", "manage"],
+        "repair":     ["read", "create", "update", "delete", "manage"],
+        "invoicing":  ["read", "create", "update", "delete", "cancel", "manage"],
+        "purchases":  ["read", "create", "update", "delete", "manage"],
+        "wallet":     ["read", "create", "update", "deposit", "withdraw", "manage"],
+        "treasury":   ["read", "create", "update", "delete", "transfer", "reconcile", "manage"],
+        "accounting": ["read", "create", "update", "delete", "post", "view"],
+        "admin":      ["read", "create", "update", "delete", "manage"],
+        "users":      ["read", "create", "update", "delete", "manage"],
+        "dashboard":  ["read"],
+    }
+    for module, actions in matrix.items():
+        for action in actions:
+            name = f"{module}:{action}"
+            if not session.query(Permission).filter(Permission.name == name).first():
+                session.add(Permission(name=name, module=module, action=action))
+    session.commit()
+
+
 @pytest.fixture(scope="function")
 def db_session():
     # ponytail: reset tenant ContextVar so a prior test that set it (via auth
@@ -127,6 +156,7 @@ def test_company(db_session):
         regimen="COMUN",
         fecha_inicio_actividades=date(2024, 1, 1),
         resolucion_facturacion="187600000001",
+        is_trial=False,
     )
     db_session.add(company)
     db_session.commit()
@@ -137,6 +167,7 @@ def test_company(db_session):
 @pytest.fixture
 def test_user(db_session, test_company):
     from app.models.sql.user import User
+    from app.models.sql.audit import Permission
 
     user = User(
         email="admin@test.com",
@@ -149,6 +180,12 @@ def test_user(db_session, test_company):
         company_id=test_company.id,
     )
     db_session.add(user)
+    db_session.commit()
+    # El tenant-superuser NO bypassea require_permission (audit C2).  Como es
+    # ADMINISTRADOR del tenant, se le asignan todos los permisos del seed.
+    _seed_all_permissions(db_session)
+    perms = db_session.query(Permission).all()
+    user.permissions = perms
     db_session.commit()
     db_session.refresh(user)
     return user
@@ -198,6 +235,7 @@ def test_company_b(db_session):
         regimen="SIMPLE",
         fecha_inicio_actividades=date(2024, 1, 1),
         resolucion_facturacion="187600000002",
+        is_trial=False,
     )
     db_session.add(company)
     db_session.commit()
@@ -209,6 +247,7 @@ def test_company_b(db_session):
 def test_user_non_super(db_session, test_company):
     """Non-superuser (regular tenant user) for isolation tests."""
     from app.models.sql.user import User
+    from app.models.sql.audit import Permission
 
     user = User(
         email="vendedor@test.com",
@@ -222,6 +261,12 @@ def test_user_non_super(db_session, test_company):
     )
     db_session.add(user)
     db_session.commit()
+    # VENDEDOR necesita permisos basicos para los tests de aislamiento
+    # (inventory/repair/etc. operan sobre su propio tenant).
+    _seed_all_permissions(db_session)
+    perms = db_session.query(Permission).all()
+    user.permissions = perms
+    db_session.commit()
     db_session.refresh(user)
     return user
 
@@ -230,6 +275,7 @@ def test_user_non_super(db_session, test_company):
 def test_user_non_super_b(db_session, test_company_b):
     """Non-superuser in company B."""
     from app.models.sql.user import User
+    from app.models.sql.audit import Permission
 
     user = User(
         email="vendedor@other.com",
@@ -242,6 +288,10 @@ def test_user_non_super_b(db_session, test_company_b):
         company_id=test_company_b.id,
     )
     db_session.add(user)
+    db_session.commit()
+    _seed_all_permissions(db_session)
+    perms = db_session.query(Permission).all()
+    user.permissions = perms
     db_session.commit()
     db_session.refresh(user)
     return user

@@ -7,7 +7,7 @@ from app.models.sql import company as company_model, user as user_model
 from app.schemas import treasury as treasury_schema
 from app.services import treasury_service
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user, verify_company_membership
+from app.api.v1.deps import verify_company_membership, require_permission
 
 router = APIRouter()
 
@@ -37,7 +37,7 @@ def create_bank_account(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "create")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -54,7 +54,7 @@ def get_bank_accounts(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "read")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -69,7 +69,7 @@ def get_bank_account(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "read")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -88,7 +88,7 @@ def update_bank_account(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "update")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -104,7 +104,7 @@ def deactivate_bank_account(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "delete")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -127,7 +127,7 @@ def get_bank_account_transactions(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "read")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -151,7 +151,7 @@ def create_cash_account(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "create")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -168,7 +168,7 @@ def get_cash_accounts(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "read")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -183,7 +183,7 @@ def get_cash_account(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "read")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -202,7 +202,7 @@ def update_cash_account(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "update")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -218,7 +218,7 @@ def deactivate_cash_account(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "delete")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -241,7 +241,7 @@ def get_cash_account_transactions(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "read")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -265,7 +265,7 @@ def deposit(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "create")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -293,7 +293,7 @@ def withdraw(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "create")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -321,7 +321,7 @@ def transfer(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "transfer")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -359,7 +359,7 @@ def record_bank_fee(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "create")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -389,7 +389,7 @@ def record_bank_interest(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "create")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -421,7 +421,7 @@ def issue_check(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "create")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -440,7 +440,7 @@ def get_checks(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "read")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -462,7 +462,7 @@ def update_check_status(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "update")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -487,7 +487,7 @@ def get_treasury_summary(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "read")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -501,7 +501,7 @@ def get_cash_flow(
     date_to: Optional[datetime] = Query(None),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "read")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -521,7 +521,7 @@ def get_treasury_transactions(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "read")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -551,7 +551,7 @@ def create_reconciliation(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "create")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -571,7 +571,7 @@ def get_reconciliations(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "read")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -589,7 +589,7 @@ def get_reconciliation(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "read")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -610,7 +610,7 @@ def match_transaction(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "reconcile")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -631,7 +631,7 @@ def add_outstanding_item(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "reconcile")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)
@@ -650,7 +650,7 @@ def complete_reconciliation(
     company_id: int = Query(...),
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("treasury", "reconcile")),
 ):
     _verify_company(db, company_id)
     service = treasury_service.TreasuryService(db)

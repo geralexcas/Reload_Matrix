@@ -59,13 +59,16 @@ class UserMeResponse(UserResponse):
     @model_validator(mode="before")
     @classmethod
     def populate_additional_fields(cls, data):
-        if hasattr(data, "permissions"):
-            data.permissions = [p.name for p in data.permissions]
-        
-        # map last_login from updated_at if available
-        if hasattr(data, "updated_at"):
-            data.last_login = data.updated_at
-            
+        # Si recibimos una instancia ORM (User), mapear a dict sin mutar el
+        # objeto persistente (mutar user.permissions con strings dispara el
+        # append del relationship de SQLAlchemy y rompe la sesion).
+        if not isinstance(data, dict):
+            obj = data
+            data = {col.name: getattr(obj, col.name) for col in obj.__table__.columns}
+            if hasattr(obj, "permissions"):
+                data["permissions"] = [p.name for p in obj.permissions]
+            if getattr(obj, "updated_at", None):
+                data["last_login"] = obj.updated_at
         return data
 
     model_config = {"from_attributes": True}
@@ -87,5 +90,6 @@ class TokenData(BaseModel):
 
 class RefreshToken(BaseModel):
     refresh_token: str
+    access_token: Optional[str] = None
 
     model_config = {"from_attributes": True}

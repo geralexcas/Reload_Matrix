@@ -16,8 +16,9 @@ from app.core import security
 from app.core.config import settings
 from app.services import accounting_service
 from app.services import dian_billing_range_service as dbr_service
-from app.api.v1.deps import get_current_user, verify_company_membership, get_current_platform_admin
+from app.api.v1.deps import get_current_user, verify_company_membership, require_permission, get_current_platform_admin
 from app.core.tenant_context import current_tenant_id
+from app.services.permission_service import assign_role_permissions, seed_permissions
 
 router = APIRouter()
 
@@ -98,6 +99,11 @@ def create_company(
 
     db.commit()
     db.refresh(db_company)
+
+    if company.admin_user:
+        seed_permissions(db)
+        assign_role_permissions(db, admin)
+        db.commit()
 
     # ponytail: el platform-admin crea la empresa y luego escribe en
     # chart_of_accounts (tabla tenant-scoped con RLS).  Seteamos el ContextVar
@@ -190,7 +196,7 @@ def read_companies(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("company", "read")),
 ):
     # Platform admin sees all; tenant users see only their own
     query = db.query(company_model.Company)
@@ -219,7 +225,7 @@ def update_company(
     company: company_schema.CompanyBase,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("company", "update")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -249,7 +255,7 @@ def create_billing_range(
     range_data: db_schema.DianBillingRangeCreate,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("company", "create")),
 ):
     db_company = (
         db.query(company_model.Company)
@@ -272,7 +278,7 @@ def list_billing_ranges(
     active: bool = False,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("company", "read")),
 ):
     service = dbr_service.DianBillingRangeService(db)
     if active:
@@ -286,7 +292,7 @@ def get_next_billing_number(
     prefix: str,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("company", "read")),
 ):
     service = dbr_service.DianBillingRangeService(db)
     next_num = service.get_next_number(company_id, prefix)
@@ -304,7 +310,7 @@ def consume_billing_number(
     range_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("company", "update")),
 ):
     service = dbr_service.DianBillingRangeService(db)
     success = service.consume_number(range_id, company_id)

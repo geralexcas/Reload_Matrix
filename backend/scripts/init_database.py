@@ -16,6 +16,7 @@ sys.path.insert(0, '/app')
 from app.core.database import SessionLocal, engine, Base
 from app.core.security import get_password_hash, validate_password_strength
 from app.models.sql.user import User
+from app.services.permission_service import seed_permissions, assign_role_permissions
 
 
 PLATFORM_ADMIN_EMAIL = os.getenv("PLATFORM_ADMIN_EMAIL", "admin@reloadmatrix.com")
@@ -71,6 +72,10 @@ def init_database():
         db.add(admin)
         db.commit()
         db.refresh(admin)
+
+        seed_permissions(db)
+        assign_role_permissions(db, admin)
+        db.commit()
 
         print("\n  " + "=" * 56)
         print("  INICIALIZACION COMPLETA")

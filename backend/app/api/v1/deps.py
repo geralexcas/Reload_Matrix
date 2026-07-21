@@ -24,9 +24,28 @@ async def get_current_user(
         username: str = payload.get("sub")
         if username is None:
             raise credentials_exception
+        token_type = payload.get("type")
+        # Reject refresh tokens used as access tokens (audit C3).
+        if token_type != "access":
+            raise credentials_exception
+        token_jti = payload.get("jti")
         token_cid = payload.get("cid")
     except JWTError:
         raise credentials_exception
+
+    # Check jti denylist (audit C4: logout revokes access token).
+    if token_jti is not None:
+        from app.models.sql.revoked_token import RevokedToken
+
+        revoked = (
+            db.query(RevokedToken).filter(RevokedToken.jti == token_jti).first()
+        )
+        if revoked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     user = (
         db.query(user_model.User).filter(user_model.User.username == username).first()
@@ -127,8 +146,10 @@ def require_permission(module: str, action: str):
         current_user: user_model.User = Depends(get_current_active_user),
         db: Session = Depends(get_db),
     ) -> user_model.User:
-        # Los superusuarios bypassean la verificación de permisos
-        if current_user.is_superuser:
+        # Solo el platform-admin (superuser sin company_id) bypassea la
+        # verificacion de permisos.  Los tenant-superusers (con company_id)
+        # deben tener el permiso explicito (audit C2: bypass global roto).
+        if current_user.is_superuser and not current_user.company_id:
             return current_user
 
         from app.models.sql.audit import Permission

@@ -19,7 +19,7 @@ if config.config_file_name is not None:
 from app.models.sql import (
     company, user, partners, inventory, invoicing, repair, wallet,
     inventory_movement, product_price_history, credit_debit_notes,
-    dian_billing, purchases, audit, fiscal_period,
+    dian_billing, purchases, audit, fiscal_period, revoked_token,
 )
 from app.models.sql.accounting import (
     chart_of_accounts,

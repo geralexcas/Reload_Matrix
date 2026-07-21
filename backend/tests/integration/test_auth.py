@@ -114,3 +114,50 @@ class TestAuthFlow:
             headers=auth_headers,
         )
         assert response.status_code == 200
+
+    def test_refresh_token_rejected_as_access(self, client, test_user):
+        """audit C3: refresh token must NOT be usable as access token."""
+        response = client.post(
+            "/api/v1/auth/token",
+            data={"username": "admin", "password": "Test@1234"},
+        )
+        assert response.status_code == 200
+        refresh_token = response.json()["refresh_token"]
+
+        # Using the refresh token as Bearer must be rejected by get_current_user.
+        response = client.get(
+            "/api/v1/users/me",
+            headers={"Authorization": f"Bearer {refresh_token}"},
+        )
+        assert response.status_code == 401
+
+    def test_logout_revokes_access_token(self, client, test_user, test_company):
+        """audit C4: logout must revoke the access token via jti denylist."""
+        response = client.post(
+            "/api/v1/auth/token",
+            data={"username": "admin", "password": "Test@1234"},
+        )
+        assert response.status_code == 200
+        access_token = response.json()["access_token"]
+        refresh_token = response.json()["refresh_token"]
+
+        # Access token works before logout.
+        assert client.get(
+            "/api/v1/users/me",
+            headers={"Authorization": f"Bearer {access_token}"},
+        ).status_code == 200
+
+        # Logout sends both tokens.
+        response = client.post(
+            "/api/v1/auth/logout",
+            json={"refresh_token": refresh_token, "access_token": access_token},
+        )
+        assert response.status_code == 200
+
+        # Access token must now be rejected (jti revoked).
+        response = client.get(
+            "/api/v1/users/me",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert response.status_code == 401
+        assert "revoked" in response.json()["detail"].lower()

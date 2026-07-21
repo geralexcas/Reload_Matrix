@@ -8,7 +8,7 @@ from app.models.sql import partners as partner_model
 from app.schemas import partners as partner_schema
 from app.services import partner_service
 from app.core.database import get_db
-from app.api.v1.deps import get_current_active_user, verify_company_membership
+from app.api.v1.deps import verify_company_membership, require_permission
 
 router = APIRouter()
 
@@ -24,7 +24,7 @@ def create_partner(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("partners", "create")),
 ):
     """
     Create a new partner (supplier or customer).
@@ -80,7 +80,7 @@ def read_partners(
     limit: int = 1000,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("partners", "read")),
 ):
     """
     Retrieve partners for a company.
@@ -104,7 +104,7 @@ def read_partner(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("partners", "read")),
 ):
     """
     Retrieve a specific partner.
@@ -132,7 +132,7 @@ def update_partner(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("partners", "update")),
 ):
     """
     Update a partner.
@@ -159,7 +159,7 @@ def delete_partner(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("partners", "delete")),
 ):
     """
     Delete a partner.

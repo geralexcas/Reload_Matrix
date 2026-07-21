@@ -37,7 +37,12 @@ const actions = {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`
 
       // Fetch full profile
-      await dispatch('fetchProfile')
+      const profile = await dispatch('fetchProfile')
+
+      // Fetch company data if user belongs to one
+      if (profile?.company_id) {
+        await dispatch('company/fetchCompany', profile.company_id, { root: true })
+      }
 
       commit('auth_success', { token, user: state.user })
       return res
@@ -71,9 +76,13 @@ const actions = {
   },
   async logout({ commit }) {
     const refreshToken = sessionStorage.getItem('refreshToken')
-    if (refreshToken) {
+    const accessToken = sessionStorage.getItem('token')
+    if (refreshToken || accessToken) {
       try {
-        await api.post('/api/v1/auth/logout', { refresh_token: refreshToken })
+        await api.post('/api/v1/auth/logout', {
+          refresh_token: refreshToken || '',
+          access_token: accessToken || ''
+        })
       } catch (e) {
         // Ignore errors during logout
       }
@@ -81,6 +90,7 @@ const actions = {
     commit('auth_logout')
     sessionStorage.removeItem('token')
     sessionStorage.removeItem('refreshToken')
+    sessionStorage.removeItem('selectedCompanyId')
     delete api.defaults.headers.common['Authorization']
   }
 }

@@ -13,7 +13,7 @@ from app.schemas import repair as rep_schema
 from app.schemas.payment import POSPayment
 from app.services import repair_service
 from app.core.database import get_db
-from app.api.v1.deps import get_current_active_user, verify_company_membership
+from app.api.v1.deps import verify_company_membership, require_permission
 
 router = APIRouter()
 
@@ -29,7 +29,7 @@ def create_repair_order(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "create")),
 ):
     """
     Create a new repair order.
@@ -62,7 +62,7 @@ def create_repair_order_simple(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "create")),
 ):
     """
     Create a new repair order (simplified form).
@@ -89,7 +89,7 @@ def create_repair_order_with_items(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "create")),
 ):
     """
     Create a new repair order with items.
@@ -114,7 +114,7 @@ def read_repair_orders(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "read")),
 ):
     """
     Retrieve repair orders for a company.
@@ -140,7 +140,7 @@ def read_repair_order(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "read")),
 ):
     """
     Retrieve a specific repair order with its items.
@@ -168,7 +168,7 @@ def update_repair_order(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "update")),
 ):
     """
     Update a repair order.
@@ -198,7 +198,7 @@ def create_repair_item(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "create")),
 ):
     """
     Add an item (service or product) to a repair order.
@@ -225,7 +225,7 @@ def delete_repair_item(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "delete")),
 ):
     """
     Delete a repair item.
@@ -250,7 +250,7 @@ def delete_repair_order(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "delete")),
 ):
     """
     Delete a repair order.
@@ -276,7 +276,7 @@ def cancel_repair_order(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "delete")),
 ):
     """
     Cancel a repair order and its associated invoice if it exists.
@@ -310,7 +310,7 @@ def apply_warranty_to_repair_order(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "update")),
 ):
     """
     Apply warranty to a repair order.
@@ -340,7 +340,7 @@ def create_warranty(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "create")),
 ):
     """
     Create a new warranty for a repair order or repair item.
@@ -368,7 +368,7 @@ def read_warranties(
     status_filter: Optional[str] = None,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "read")),
 ):
     """
     Retrieve warranties for a company, optionally filtered by status.
@@ -393,7 +393,7 @@ def read_warranty(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "read")),
 ):
     """
     Retrieve a specific warranty.
@@ -422,7 +422,7 @@ def read_warranties_by_repair_order(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "read")),
 ):
     """
     Retrieve all warranties for a specific repair order.
@@ -449,7 +449,7 @@ def update_warranty_status(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "update")),
 ):
     """
     Update warranty status (ACTIVE, EXPIRED, VOID, CLAIMED).
@@ -484,7 +484,7 @@ def file_warranty_claim(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "update")),
 ):
     """
     File a warranty claim for an active warranty.
@@ -512,7 +512,7 @@ def check_expired_warranties(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "read")),
 ):
     """
     Check and mark expired warranties automatically.
@@ -535,7 +535,7 @@ def delete_warranty(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "delete")),
 ):
     """
     Delete a warranty.
@@ -566,7 +566,7 @@ def generate_invoice_from_repair_order(
     payment_data: Optional[POSPayment] = None,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "create")),
 ):
     """
     Generate an invoice from a completed repair order.
@@ -603,7 +603,7 @@ def create_technician(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "create")),
 ):
     """
     Create a new technician.
@@ -628,7 +628,7 @@ def read_technicians(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "read")),
 ):
     """
     Retrieve technicians for a company.
@@ -654,7 +654,7 @@ def read_technician(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "read")),
 ):
     """
     Retrieve a specific technician.
@@ -684,7 +684,7 @@ def update_technician(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "update")),
 ):
     """
     Update a technician.
@@ -711,7 +711,7 @@ def delete_technician(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("repair", "delete")),
 ):
     """
     Delete a technician.

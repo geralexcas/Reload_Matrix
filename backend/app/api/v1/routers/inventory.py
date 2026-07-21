@@ -10,7 +10,7 @@ from app.models.sql.inventory import Product as prod_model
 from app.schemas import inventory as inv_schema
 from app.services import inventory_service
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user, verify_company_membership
+from app.api.v1.deps import verify_company_membership, require_permission
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def create_product(
     company_id: int,
     db_company: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("inventory", "create")),
 ):
     """
     Create a new product.
@@ -69,7 +69,7 @@ def bulk_create_products(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("inventory", "create")),
 ):
     """
     Create multiple products (serialized).
@@ -96,7 +96,7 @@ def read_products(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("inventory", "read")),
 ):
     """
     Retrieve products for a company.
@@ -119,7 +119,7 @@ def get_product_categories(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("inventory", "read")),
 ):
     """
     Return all distinct product categories used in this company's inventory.
@@ -152,7 +152,7 @@ def read_product(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("inventory", "read")),
 ):
     """
     Retrieve a specific product.
@@ -180,7 +180,7 @@ def update_product(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("inventory", "update")),
 ):
     """
     Update a product.
@@ -207,7 +207,7 @@ def delete_product(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("inventory", "delete")),
 ):
     """
     Delete a product.
@@ -238,7 +238,7 @@ def get_product_by_barcode(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("inventory", "read")),
 ):
     """
     Get product by barcode for scanning functionality.
@@ -268,7 +268,7 @@ def get_low_stock_products(
     limit: int = 100,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("inventory", "read")),
 ):
     """
     Get products with stock at or below minimum level.
@@ -293,7 +293,7 @@ def adjust_stock_level(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("inventory", "update")),
 ):
     """
     Adjust stock level by a specified amount.
@@ -321,7 +321,7 @@ def deduct_stock(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("inventory", "update")),
 ):
     """
     Deduct stock for a product. Used when parts are consumed in repairs or sales.
@@ -351,7 +351,7 @@ def check_stock_availability(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_user),
+    current_user: user_model.User = Depends(require_permission("inventory", "read")),
 ):
     """
     Check if there is enough stock for a product.

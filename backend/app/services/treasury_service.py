@@ -135,16 +135,15 @@ class TreasuryService:
         )
 
     def get_bank_account_by_id(
-        self, bank_id: int, company_id: int
+        self, bank_id: int, company_id: int, lock: bool = False
     ) -> Optional[BankAccount]:
-        return (
-            self.db.query(BankAccount)
-            .filter(
-                BankAccount.id == bank_id,
-                BankAccount.company_id == company_id,
-            )
-            .first()
+        query = self.db.query(BankAccount).filter(
+            BankAccount.id == bank_id,
+            BankAccount.company_id == company_id,
         )
+        if lock:
+            query = query.with_for_update()
+        return query.first()
 
     def update_bank_account(
         self, bank_id: int, data: treasury_schema.BankAccountUpdate, company_id: int
@@ -254,16 +253,15 @@ class TreasuryService:
         )
 
     def get_cash_account_by_id(
-        self, cash_id: int, company_id: int
+        self, cash_id: int, company_id: int, lock: bool = False
     ) -> Optional[CashAccount]:
-        return (
-            self.db.query(CashAccount)
-            .filter(
-                CashAccount.id == cash_id,
-                CashAccount.company_id == company_id,
-            )
-            .first()
+        query = self.db.query(CashAccount).filter(
+            CashAccount.id == cash_id,
+            CashAccount.company_id == company_id,
         )
+        if lock:
+            query = query.with_for_update()
+        return query.first()
 
     def update_cash_account(
         self, cash_id: int, data: treasury_schema.CashAccountUpdate, company_id: int
@@ -319,10 +317,12 @@ class TreasuryService:
         skip_journal_entry: bool = False,
         commit: bool = True,
     ) -> TreasuryTransaction:
+        if amount <= 0:
+            raise ValueError("El monto del depósito debe ser mayor a cero")
         je = None
 
         if account_type == "BANK":
-            account = self.get_bank_account_by_id(account_id, company_id)
+            account = self.get_bank_account_by_id(account_id, company_id, lock=True)
             if not account:
                 raise ValueError("Bank account not found")
 
@@ -363,7 +363,7 @@ class TreasuryService:
                 )
 
         elif account_type == "CASH":
-            account = self.get_cash_account_by_id(account_id, company_id)
+            account = self.get_cash_account_by_id(account_id, company_id, lock=True)
             if not account:
                 raise ValueError("Cash account not found")
 
@@ -446,12 +446,15 @@ class TreasuryService:
         skip_journal_entry: bool = False,
         commit: bool = True,
     ) -> TreasuryTransaction:
+        if amount <= 0:
+            raise ValueError("El monto del retiro debe ser mayor a cero")
+
         if account_type == "BANK":
-            account = self.get_bank_account_by_id(account_id, company_id)
+            account = self.get_bank_account_by_id(account_id, company_id, lock=True)
             if not account:
                 raise ValueError("Bank account not found")
         elif account_type == "CASH":
-            account = self.get_cash_account_by_id(account_id, company_id)
+            account = self.get_cash_account_by_id(account_id, company_id, lock=True)
             if not account:
                 raise ValueError("Cash account not found")
         else:
@@ -543,23 +546,26 @@ class TreasuryService:
         company_id: int,
         user_id: Optional[int] = None,
     ) -> List[TreasuryTransaction]:
+        if amount <= 0:
+            raise ValueError("El monto de la transferencia debe ser mayor a cero")
+
         if from_account_type == "BANK":
-            from_account = self.get_bank_account_by_id(from_account_id, company_id)
+            from_account = self.get_bank_account_by_id(from_account_id, company_id, lock=True)
             if not from_account:
                 raise ValueError("Source bank account not found")
         elif from_account_type == "CASH":
-            from_account = self.get_cash_account_by_id(from_account_id, company_id)
+            from_account = self.get_cash_account_by_id(from_account_id, company_id, lock=True)
             if not from_account:
                 raise ValueError("Source cash account not found")
         else:
             raise ValueError("Invalid source account type")
 
         if to_account_type == "BANK":
-            to_account = self.get_bank_account_by_id(to_account_id, company_id)
+            to_account = self.get_bank_account_by_id(to_account_id, company_id, lock=True)
             if not to_account:
                 raise ValueError("Destination bank account not found")
         elif to_account_type == "CASH":
-            to_account = self.get_cash_account_by_id(to_account_id, company_id)
+            to_account = self.get_cash_account_by_id(to_account_id, company_id, lock=True)
             if not to_account:
                 raise ValueError("Destination cash account not found")
         else:
@@ -648,7 +654,10 @@ class TreasuryService:
         company_id: int,
         user_id: Optional[int] = None,
     ) -> TreasuryTransaction:
-        account = self.get_bank_account_by_id(bank_account_id, company_id)
+        if amount <= 0:
+            raise ValueError("El monto de la comisión debe ser mayor a cero")
+
+        account = self.get_bank_account_by_id(bank_account_id, company_id, lock=True)
         if not account:
             raise ValueError("Bank account not found")
         if account.current_balance < amount:
@@ -705,7 +714,10 @@ class TreasuryService:
         company_id: int,
         user_id: Optional[int] = None,
     ) -> TreasuryTransaction:
-        account = self.get_bank_account_by_id(bank_account_id, company_id)
+        if amount <= 0:
+            raise ValueError("El monto del interés debe ser mayor a cero")
+
+        account = self.get_bank_account_by_id(bank_account_id, company_id, lock=True)
         if not account:
             raise ValueError("Bank account not found")
 

@@ -1,4 +1,5 @@
 from app.models.sql import company as company_model
+from app.models.sql import user as user_model
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -9,7 +10,7 @@ from app.models.sql.repair import RepairOrder
 from app.models.sql.user import User
 from app.schemas.dashboard import DashboardStats
 from app.core.database import get_db
-from app.api.v1.deps import get_current_active_user, verify_company_membership
+from app.api.v1.deps import require_permission, verify_company_membership
 
 router = APIRouter()
 
@@ -18,7 +19,7 @@ def get_dashboard_stats(
     company_id: int,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("dashboard", "read")),
 ):
     """
     Get dashboard statistics for a specific company.

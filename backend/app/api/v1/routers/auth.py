@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 
 from app.models.sql import user as user_model
+from app.models.sql import company as company_model
 from app.schemas import user as user_schema
 from app.core import security
 from app.core.config import settings
@@ -43,6 +44,17 @@ async def login_for_access_token(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is disabled",
         )
+    if user.company_id:
+        company = (
+            db.query(company_model.Company)
+            .filter(company_model.Company.id == user.company_id)
+            .first()
+        )
+        if company and not company.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Company account is disabled. Contact support.",
+            )
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token_with_company(
         data={"sub": user.username},
@@ -116,6 +128,17 @@ async def refresh_access_token(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is disabled",
         )
+    if user.company_id:
+        company = (
+            db.query(company_model.Company)
+            .filter(company_model.Company.id == user.company_id)
+            .first()
+        )
+        if company and not company.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Company account is disabled. Contact support.",
+            )
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token_with_company(
         data={"sub": user.username},
@@ -140,6 +163,47 @@ async def refresh_access_token(
 
 @router.post("/logout")
 async def logout(token_data: user_schema.RefreshToken, db: Session = Depends(get_db)):
+    from datetime import datetime, timezone
+    from app.models.sql.revoked_token import RevokedToken
+
+    # Revoke access token jti (audit C4: logout revokes access token).
+    if token_data.access_token:
+        try:
+            access_payload = security.jwt.decode(
+                token_data.access_token,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM],
+            )
+            access_jti = access_payload.get("jti")
+            access_exp = access_payload.get("exp")
+            access_username = access_payload.get("sub")
+            if access_jti and access_exp:
+                existing = (
+                    db.query(RevokedToken)
+                    .filter(RevokedToken.jti == access_jti)
+                    .first()
+                )
+                if not existing:
+                    user_id = None
+                    if access_username:
+                        u = (
+                            db.query(user_model.User)
+                            .filter(user_model.User.username == access_username)
+                            .first()
+                        )
+                        if u:
+                            user_id = u.id
+                    db.add(
+                        RevokedToken(
+                            jti=access_jti,
+                            user_id=user_id,
+                            expires_at=datetime.fromtimestamp(access_exp, tz=timezone.utc),
+                        )
+                    )
+        except security.JWTError:
+            pass
+
+    # Revoke refresh token.
     try:
         payload = security.jwt.decode(
             token_data.refresh_token,
@@ -157,7 +221,7 @@ async def logout(token_data: user_schema.RefreshToken, db: Session = Depends(get
         )
         if user and user.hashed_refresh_token:
             user.hashed_refresh_token = None
-            db.commit()
+    db.commit()
     return {"message": "Logged out successfully"}
 
 

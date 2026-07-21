@@ -17,6 +17,32 @@ class BackupService:
         self.backup_dir.mkdir(parents=True, exist_ok=True)
         self.uploads_dir = Path(settings.UPLOAD_DIR)
 
+    def _resolve_backup_path(self, filename: str) -> Path:
+        """Sanitize filename and ensure resolved path stays under backup_dir."""
+        name = Path(filename).name
+        if not name or not name.endswith(".zip") or name in (".", ".."):
+            raise ValueError("Nombre de respaldo inválido")
+        base = self.backup_dir.resolve()
+        path = (self.backup_dir / name).resolve()
+        if not path.is_relative_to(base):
+            raise ValueError("Ruta fuera del directorio de respaldos")
+        return path
+
+    @staticmethod
+    def _safe_extract(zf: zipfile.ZipFile, dest: Path) -> None:
+        """Extract zip members only if they stay under dest (anti Zip Slip)."""
+        dest = dest.resolve()
+        for info in zf.infolist():
+            member = info.filename
+            if not member or member.endswith("/"):
+                continue
+            target = (dest / member).resolve()
+            if not target.is_relative_to(dest):
+                raise ValueError(f"Entrada zip insegura: {member}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(info) as src, open(target, "wb") as out:
+                shutil.copyfileobj(src, out)
+
     def create_backup(self) -> str:
         """
         Creates a ZIP backup containing the database dump and uploads folder.
@@ -87,7 +113,7 @@ class BackupService:
         """
         Restores a backup from a ZIP file.
         """
-        zip_path = self.backup_dir / filename
+        zip_path = self._resolve_backup_path(filename)
         if not zip_path.exists():
             raise FileNotFoundError(f"Archivo de respaldo {filename} no encontrado")
 
@@ -98,7 +124,7 @@ class BackupService:
 
         try:
             with zipfile.ZipFile(zip_path, 'r') as zf:
-                zf.extractall(temp_extract_dir)
+                self._safe_extract(zf, temp_extract_dir)
 
             # 1. Restore Database
             sql_file = temp_extract_dir / "database.sql"
@@ -153,7 +179,7 @@ class BackupService:
         """
         Deletes a backup file.
         """
-        file_path = self.backup_dir / filename
+        file_path = self._resolve_backup_path(filename)
         if file_path.exists():
             file_path.unlink()
             return True
@@ -163,9 +189,9 @@ class BackupService:
         """
         Returns the absolute path to a backup file.
         """
-        file_path = self.backup_dir / filename
+        file_path = self._resolve_backup_path(filename)
         if not file_path.exists():
-             raise FileNotFoundError("Archivo no encontrado")
+            raise FileNotFoundError("Archivo no encontrado")
         return file_path
 
     def cleanup_old_backups(self, keep_last: int = 7):

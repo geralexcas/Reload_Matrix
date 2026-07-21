@@ -6,10 +6,6 @@
         <button class="btn btn-primary" @click="createBackup" :disabled="loading">
           {{ loading ? 'Procesando...' : '+ Crear Respaldo' }}
         </button>
-        <label class="btn btn-secondary ml-2">
-          Subir Archivo
-          <input type="file" @change="uploadBackup" accept=".zip" class="hidden-input" />
-        </label>
       </div>
     </div>
 
@@ -86,7 +82,6 @@
 <script>
 import { ref, onMounted, getCurrentInstance } from 'vue'
 import api from '@/services/api'
-import store from '@/store'
 
 export default {
   name: 'BackupView',
@@ -173,25 +168,6 @@ export default {
       }
     }
 
-    const uploadBackup = async (event) => {
-      const file = event.target.files[0]
-      if (!file) return
-      const formData = new FormData()
-      formData.append('file', file)
-      loading.value = true
-      try {
-        await api.post('/api/v1/admin/backups/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        })
-        await fetchBackups()
-        toast.success('Archivo subido exitosamente')
-      } catch (err) {
-        toast.error('Error al subir archivo: ' + (err.response?.data?.detail || err.message))
-      } finally {
-        loading.value = false
-      }
-    }
-
     const formatDate = (d) => new Date(d).toLocaleString('es-CO')
     const formatSize = (b) => {
       if (!b) return '0 B'
@@ -204,7 +180,7 @@ export default {
     return {
       backups, loading, fetching, showRestoreConfirm, selectedBackup,
       createBackup, downloadBackup, deleteBackup, confirmRestore, executeRestore,
-      uploadBackup, formatDate, formatSize
+      formatDate, formatSize
     }
   }
 }
@@ -303,8 +279,6 @@ export default {
   padding: 4px 10px;
   font-size: 0.8rem;
 }
-
-.hidden-input { display: none; }
 
 .modal-overlay {
   position: fixed;

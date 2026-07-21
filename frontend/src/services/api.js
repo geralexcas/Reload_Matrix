@@ -49,6 +49,7 @@ api.interceptors.response.use(
       if (!refreshToken || originalRequest.url?.includes('/auth/refresh') || originalRequest.url?.includes('/auth/token')) {
         sessionStorage.removeItem('token')
         sessionStorage.removeItem('refreshToken')
+        sessionStorage.removeItem('selectedCompanyId')
         window.location.href = '/login'
         return Promise.reject(error)
       }
@@ -80,6 +81,7 @@ api.interceptors.response.use(
         processQueue(refreshError, null)
         sessionStorage.removeItem('token')
         sessionStorage.removeItem('refreshToken')
+        sessionStorage.removeItem('selectedCompanyId')
         window.location.href = '/login'
         return Promise.reject(refreshError)
       } finally {

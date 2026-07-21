@@ -71,6 +71,7 @@ class CompanyResponse(CompanyBase):
     id: int
     logo_url: Optional[str] = None
     is_active: bool
+    is_trial: bool = True
     created_at: datetime
     updated_at: datetime
 

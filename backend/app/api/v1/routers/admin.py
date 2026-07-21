@@ -1,5 +1,4 @@
-import shutil
-from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -13,8 +12,10 @@ from app.api.v1.deps import (
     get_current_superuser,
     get_current_active_user,
     get_current_platform_admin,
+    require_permission,
 )
 from app.services.backup_service import BackupService
+from app.services.permission_service import assign_role_permissions, seed_permissions
 
 
 router = APIRouter()
@@ -29,7 +30,7 @@ def list_users(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("users", "read")),
 ):
     """List all users. Platform admin can see all or filter by company.
     Tenant users only see their own company."""
@@ -52,7 +53,7 @@ def list_users(
 def get_user(
     user_id: int,
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("users", "read")),
 ):
     """Get user by ID. Regular users can only see users in their own company."""
     user = db.query(user_model.User).filter(user_model.User.id == user_id).first()
@@ -120,6 +121,11 @@ def create_user(
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+
+    seed_permissions(db)
+    assign_role_permissions(db, db_user)
+    db.commit()
+
     return db_user
 
 
@@ -249,7 +255,7 @@ def get_audit_logs(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: user_model.User = Depends(get_current_active_user),
+    current_user: user_model.User = Depends(require_permission("users", "read")),
 ):
     """Query audit logs. Platform admin sees all or filters by company.
     Tenant users only see their own company's logs."""
@@ -392,10 +398,12 @@ def download_backup(
     try:
         path = service.get_backup_path(filename)
         return FileResponse(
-            path, 
-            media_type="application/zip", 
-            filename=filename
+            path,
+            media_type="application/zip",
+            filename=path.name,
         )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
 
@@ -410,6 +418,8 @@ def restore_backup(
     try:
         service.restore_backup(filename)
         return {"message": "Sistema restaurado exitosamente"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
     except Exception as e:
@@ -423,28 +433,9 @@ def delete_backup(
 ):
     """Delete a backup file."""
     service = BackupService()
-    if service.delete_backup(filename):
-        return {"message": "Respaldo eliminado"}
-    raise HTTPException(status_code=404, detail="Archivo no encontrado")
-
-
-@router.post("/backups/upload")
-async def upload_backup(
-    file: UploadFile = File(...),
-    current_user: user_model.User = Depends(get_current_superuser),
-):
-    """Upload a backup zip file."""
-    if not file.filename.endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Solo se permiten archivos .zip")
-    
-    service = BackupService()
-    target_path = service.backup_dir / file.filename
-    
     try:
-        with open(target_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        return {"message": "Archivo subido exitosamente", "filename": file.filename}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al subir archivo: {str(e)}")
-    finally:
-        await file.close()
+        if service.delete_backup(filename):
+            return {"message": "Respaldo eliminado"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    raise HTTPException(status_code=404, detail="Archivo no encontrado")

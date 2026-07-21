@@ -28,6 +28,7 @@ class Company(Base):
     invoice_footer_note = Column(Text, nullable=True)
     repair_footer_note = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
+    is_trial = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

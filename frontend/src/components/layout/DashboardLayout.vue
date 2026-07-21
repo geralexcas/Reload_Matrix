@@ -3,6 +3,14 @@
     <SidebarNav :is-collapsed="sidebarCollapsed" @toggle="sidebarCollapsed = !sidebarCollapsed" />
     <div class="main-content" :class="{ expanded: sidebarCollapsed }">
       <TopHeader :title="pageTitle" @toggle-sidebar="sidebarCollapsed = !sidebarCollapsed" />
+      <div v-if="showTrialBanner" :class="['trial-banner', { expired: isExpired }]">
+        <template v-if="isExpired">
+          Tu período de prueba ha expirado. Contacta con soporte para reactivar el servicio.
+        </template>
+        <template v-else>
+          Te quedan <strong>{{ daysRemaining }}</strong> día{{ daysRemaining === 1 ? '' : 's' }} de tu período de prueba de 60 días. Contacta con soporte para mantener el servicio.
+        </template>
+      </div>
       <main class="page-content">
         <router-view />
       </main>
@@ -11,6 +19,7 @@
 </template>
 
 <script>
+import { mapState } from 'vuex'
 import SidebarNav from '@/components/layout/SidebarNav.vue'
 import TopHeader from '@/components/layout/TopHeader.vue'
 
@@ -22,7 +31,28 @@ export default {
       sidebarCollapsed: false
     }
   },
+  created() {
+    const companyId = this.$store.state.auth.user?.company_id
+    if (companyId && !this.$store.state.company.company) {
+      this.$store.dispatch('company/fetchCompany', companyId)
+    }
+  },
   computed: {
+    ...mapState('company', ['company']),
+    showTrialBanner() {
+      if (!this.company?.is_trial) return false
+      return this.daysRemaining <= 10
+    },
+    isExpired() {
+      return this.daysRemaining <= 0
+    },
+    daysRemaining() {
+      if (!this.company?.created_at) return 60
+      const created = new Date(this.company.created_at)
+      const now = new Date()
+      const elapsed = Math.floor((now - created) / (1000 * 60 * 60 * 24))
+      return 60 - elapsed
+    },
     pageTitle() {
       const routeName = this.$route.name || ''
       const titles = {
@@ -79,5 +109,20 @@ export default {
   flex: 1;
   padding: 1.5rem;
   background-color: #f8f9fa;
+}
+
+.trial-banner {
+  background: #fff3cd;
+  color: #856404;
+  padding: 0.75rem 1.5rem;
+  text-align: center;
+  font-weight: 600;
+  border-bottom: 1px solid #ffc107;
+}
+
+.trial-banner.expired {
+  background: #f8d7da;
+  color: #721c24;
+  border-color: #f5c6cb;
 }
 </style>
