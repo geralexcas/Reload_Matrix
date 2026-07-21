@@ -22,11 +22,13 @@ class AccountingService:
 
     # Chart of Accounts methods
     def create_chart_of_accounts(
-        self, coa: co_schema.ChartOfAccountsCreate, company_id: int
+        self, coa: co_schema.ChartOfAccountsCreate, company_id: int, commit: bool = False
     ) -> ChartOfAccounts:
         db_coa = ChartOfAccounts(**coa.model_dump(), company_id=company_id)
         self.db.add(db_coa)
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_coa)
         return db_coa
 
@@ -56,27 +58,30 @@ class AccountingService:
         )
 
     def update_chart_of_accounts(
-        self, coa_id: int, coa: co_schema.ChartOfAccountsCreate, company_id: int
+        self, coa_id: int, coa: co_schema.ChartOfAccountsCreate, company_id: int, commit: bool = False
     ) -> Optional[ChartOfAccounts]:
         db_coa = self.get_chart_of_account_by_id(coa_id, company_id)
         if db_coa:
             for key, value in coa.model_dump().items():
                 setattr(db_coa, key, value)
-            self.db.commit()
+            self.db.flush()
+            if commit:
+                self.db.commit()
             self.db.refresh(db_coa)
         return db_coa
 
-    def delete_chart_of_accounts(self, coa_id: int, company_id: int) -> bool:
+    def delete_chart_of_accounts(self, coa_id: int, company_id: int, commit: bool = False) -> bool:
         db_coa = self.get_chart_of_account_by_id(coa_id, company_id)
         if db_coa:
             self.db.delete(db_coa)
-            self.db.commit()
+            if commit:
+                self.db.commit()
             return True
         return False
 
     # Journal Entry methods
     def create_journal_entry(
-        self, je: co_schema.JournalEntryCreate, company_id: int
+        self, je: co_schema.JournalEntryCreate, company_id: int, commit: bool = False
     ) -> JournalEntry:
         if je.reference:
             existing = self.db.query(JournalEntry).filter(
@@ -88,12 +93,14 @@ class AccountingService:
 
         db_je = JournalEntry(**je.model_dump(), company_id=company_id)
         self.db.add(db_je)
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_je)
         return db_je
 
     def create_journal_entry_with_lines(
-        self, je_with_lines: co_schema.JournalEntryWithLinesCreate, company_id: int
+        self, je_with_lines: co_schema.JournalEntryWithLinesCreate, company_id: int, commit: bool = False
     ) -> JournalEntry:
         # Validate balance before creating any records
         total_debits = sum(line.debit_amount for line in je_with_lines.lines)
@@ -150,7 +157,9 @@ class AccountingService:
             )
             self.db.add(db_jel)
 
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_je)
         return db_je
 
@@ -201,7 +210,7 @@ class AccountingService:
         return je
 
     def reverse_journal_entry(
-        self, je_id: int, company_id: int, description: Optional[str] = None, commit: bool = True
+        self, je_id: int, company_id: int, description: Optional[str] = None, commit: bool = False
     ) -> JournalEntry:
         """
         Creates a reversing entry for an existing journal entry.
@@ -306,7 +315,7 @@ class AccountingService:
             "is_balanced": total_debit == total_credit,
         }
 
-    def post_journal_entry(self, je_id: int, company_id: int) -> Dict[str, Any]:
+    def post_journal_entry(self, je_id: int, company_id: int, commit: bool = False) -> Dict[str, Any]:
         try:
             db_je = self.db.query(JournalEntry).filter(JournalEntry.id == je_id, JournalEntry.company_id == company_id).with_for_update().first()
             if not db_je:
@@ -481,7 +490,9 @@ class AccountingService:
                         self.db.add(tx)
                         treasury_sync_count += 1
 
-            self.db.commit()
+            self.db.flush()
+            if commit:
+                self.db.commit()
             self.db.refresh(db_je)
 
             warning = None
@@ -1768,7 +1779,7 @@ class AccountingService:
         return "Bimestre actual"
 
     def create_default_chart_of_accounts(
-        self, company_id: int
+        self, company_id: int, commit: bool = False
     ) -> List[ChartOfAccounts]:
         """
         Create a default chart of accounts for a new company based on Colombian accounting standards.
@@ -2179,7 +2190,9 @@ class AccountingService:
             if iva_soportado and iva_soportado.is_active:
                 iva_soportado.is_active = False
 
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
 
         for coa in created_accounts:
             self.db.refresh(coa)
@@ -2192,6 +2205,7 @@ class AccountingService:
         initial_capital: Decimal = Decimal("0.00"),
         initial_cash: Decimal = Decimal("0.00"),
         initial_bank: Decimal = Decimal("0.00"),
+        commit: bool = False,
     ) -> Optional[JournalEntry]:
         """
         Create opening journal entry for a new company.
@@ -2290,7 +2304,8 @@ class AccountingService:
 
         self.db.flush()
         self._validate_journal_entry_balance(db_je.id)
-        self.db.commit()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_je)
         return db_je
 
@@ -2321,7 +2336,7 @@ class AccountingService:
         payment_method: Optional[str] = None,
         payment_account_id: Optional[int] = None,
         wallet_amount_applied: Decimal = Decimal("0.00"),
-        commit: bool = True,
+        commit: bool = False,
     ) -> Optional[JournalEntry]:
         """
         Create automatic journal entry from an invoice.
@@ -2546,6 +2561,7 @@ class AccountingService:
         company_id: int,
         total_amount: Decimal,
         payment_method: str,
+        commit: bool = False,
     ) -> Optional[JournalEntry]:
         """
         Creates a journal entry to record the payment of a previously issued/draft invoice.
@@ -2639,6 +2655,7 @@ class AccountingService:
         company_id: int,
         parts_cost: Decimal,
         labor_cost: Decimal,
+        commit: bool = False,
     ) -> Optional[JournalEntry]:
         """
         Create journal entry for warranty repair.
@@ -2690,7 +2707,9 @@ class AccountingService:
             )
         )
 
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_je)
         return db_je
 
@@ -2702,6 +2721,7 @@ class AccountingService:
         unit_cost: Decimal,
         description: str,
         reference: str,
+        commit: bool = False,
     ) -> Optional[JournalEntry]:
         """
         Create journal entry when inventory is used in repairs.
@@ -2753,7 +2773,8 @@ class AccountingService:
 
         self.db.flush()
         self._validate_journal_entry_balance(db_je.id)
-        self.db.commit()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_je)
         return db_je
 
@@ -2940,6 +2961,7 @@ class AccountingService:
         tax_amount: Decimal,
         partner_id: int,
         payment_method: str,
+        commit: bool = False,
     ) -> Optional[JournalEntry]:
         """
         Create automatic journal entry from a purchase.
@@ -3040,7 +3062,8 @@ class AccountingService:
 
         self.db.flush()
         self._validate_journal_entry_balance(db_je.id)
-        self.db.commit()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_je)
         return db_je
 
@@ -3107,6 +3130,7 @@ class AccountingService:
         company_id: int,
         total_amount: Decimal,
         payment_method: str,
+        commit: bool = False,
     ) -> Optional[JournalEntry]:
         """
         Create automatic journal entry for initial stock of a product.
@@ -3178,7 +3202,7 @@ class AccountingService:
         self._validate_journal_entry_balance(db_je.id)
         
         # Post the journal entry so treasury synchronization is triggered automatically
-        self.post_journal_entry(je_id=db_je.id, company_id=company_id)
+        self.post_journal_entry(je_id=db_je.id, company_id=company_id, commit=commit)
         
         self.db.refresh(db_je)
         return db_je

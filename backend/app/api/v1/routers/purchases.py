@@ -45,7 +45,9 @@ def create_purchase(
     service = purchase_service.PurchaseService(db)
     try:
         logger.info(f"Registrando compra para empresa {company_id}, usuario {current_user.id}")
-        return service.create_purchase(purchase, company_id, current_user.id)
+        result = service.create_purchase(purchase, company_id, current_user.id)
+        db.commit()
+        return result
     except ValueError as e:
         logger.warning(f"Error de validación al crear compra: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -172,6 +174,7 @@ def update_purchase(
         updated = service.update_purchase(purchase_id, purchase, company_id)
         if not updated:
             raise HTTPException(status_code=404, detail="Purchase not found")
+        db.commit()
         return updated
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -210,7 +213,9 @@ def cancel_purchase(
     _verify_company(db, company_id)
     service = purchase_service.PurchaseService(db)
     try:
-        return service.cancel_purchase(purchase_id, company_id)
+        result = service.cancel_purchase(purchase_id, company_id)
+        db.commit()
+        return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -239,9 +244,11 @@ def register_payment(
     _verify_company(db, company_id)
     service = purchase_service.PurchaseService(db)
     try:
-        return service.register_payment(
+        result = service.register_payment(
             purchase_id, payment, company_id, current_user.id
         )
+        db.commit()
+        return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

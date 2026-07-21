@@ -52,6 +52,7 @@ def create_product(
     service = inventory_service.InventoryService(db)
     try:
         result = service.create_product(product, company_id)
+        db.commit()
         logger.info(f"[INVENTORY] Product created successfully: {result.id}")
         return result
     except ValueError as e:
@@ -84,7 +85,9 @@ def bulk_create_products(
 
     service = inventory_service.InventoryService(db)
     try:
-        return service.bulk_create_products(bulk_data, company_id)
+        result = service.bulk_create_products(bulk_data, company_id)
+        db.commit()
+        return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -198,6 +201,7 @@ def update_product(
     db_product = service.update_product(product_id, product, company_id)
     if db_product is None:
         raise HTTPException(status_code=404, detail="Product not found")
+    db.commit()
     return db_product
 
 
@@ -226,6 +230,7 @@ def delete_product(
         success = service.delete_product(product_id, company_id)
         if not success:
             raise HTTPException(status_code=404, detail="Product not found")
+        db.commit()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return None
@@ -311,6 +316,7 @@ def adjust_stock_level(
     db_product = service.adjust_stock_level(product_id, adjustment, company_id)
     if db_product is None:
         raise HTTPException(status_code=404, detail="Product not found")
+    db.commit()
     return db_product
 
 
@@ -337,6 +343,7 @@ def deduct_stock(
     service = inventory_service.InventoryService(db)
     try:
         db_product = service.deduct_stock(product_id, quantity, company_id)
+        db.commit()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     if db_product is None:

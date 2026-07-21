@@ -14,7 +14,7 @@ class CreditDebitNoteService:
         self.db = db
 
     def create_note(
-        self, note_data: CreditDebitNoteCreate, company_id: int, user_id: int
+        self, note_data: CreditDebitNoteCreate, company_id: int, user_id: int, commit: bool = False
     ) -> CreditDebitNote:
         invoice = (
             self.db.query(Invoice)
@@ -48,11 +48,13 @@ class CreditDebitNoteService:
             estado_dian="BORRADOR",
         )
         self.db.add(note)
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(note)
         return note
 
-    def generate_xml_and_cufe(self, note_id: int, company_id: int) -> dict:
+    def generate_xml_and_cufe(self, note_id: int, company_id: int, commit: bool = False) -> dict:
         note = (
             self.db.query(CreditDebitNote)
             .filter(
@@ -84,7 +86,9 @@ class CreditDebitNoteService:
                 company_regimen=invoice.company.regimen,
             )
 
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(note)
         return {
             "note_id": note.id,
@@ -93,7 +97,7 @@ class CreditDebitNoteService:
             "xml_generated": bool(note.xml_ubl),
         }
 
-    def send_to_dian(self, note_id: int, company_id: int) -> dict:
+    def send_to_dian(self, note_id: int, company_id: int, commit: bool = False) -> dict:
         note = (
             self.db.query(CreditDebitNote)
             .filter(
@@ -110,7 +114,9 @@ class CreditDebitNoteService:
 
         note.estado_dian = "ENVIADO"
         note.fecha_envio_dian = datetime.now(timezone.utc)
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(note)
 
         return {

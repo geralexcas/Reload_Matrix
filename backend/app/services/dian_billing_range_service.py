@@ -11,7 +11,7 @@ class DianBillingRangeService:
         self.db = db
 
     def create_range(
-        self, range_data: DianBillingRangeCreate, company_id: int
+        self, range_data: DianBillingRangeCreate, company_id: int, commit: bool = False
     ) -> DianBillingRange:
         dr = DianBillingRange(
             **range_data.model_dump(),
@@ -19,7 +19,9 @@ class DianBillingRangeService:
             next_number=range_data.from_number,
         )
         self.db.add(dr)
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(dr)
         return dr
 
@@ -57,7 +59,7 @@ class DianBillingRangeService:
             return None
         return dr.next_number
 
-    def consume_number(self, range_id: int, company_id: int) -> bool:
+    def consume_number(self, range_id: int, company_id: int, commit: bool = False) -> bool:
         dr = (
             self.db.query(DianBillingRange)
             .filter(
@@ -71,7 +73,8 @@ class DianBillingRangeService:
         dr.next_number += 1
         if dr.next_number > dr.to_number:
             dr.is_active = False
-        self.db.commit()
+        if commit:
+            self.db.commit()
         return True
 
     def validate_range_available(
@@ -103,21 +106,24 @@ class DianBillingRangeService:
         )
 
     def update_range(
-        self, range_id: int, range_data: DianBillingRangeCreate, company_id: int
+        self, range_id: int, range_data: DianBillingRangeCreate, company_id: int, commit: bool = False
     ) -> Optional[DianBillingRange]:
         dr = self.get_range_by_id(range_id, company_id)
         if not dr:
             return None
         for key, value in range_data.model_dump().items():
             setattr(dr, key, value)
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(dr)
         return dr
 
-    def deactivate_range(self, range_id: int, company_id: int) -> bool:
+    def deactivate_range(self, range_id: int, company_id: int, commit: bool = False) -> bool:
         dr = self.get_range_by_id(range_id, company_id)
         if not dr:
             return False
         dr.is_active = False
-        self.db.commit()
+        if commit:
+            self.db.commit()
         return True

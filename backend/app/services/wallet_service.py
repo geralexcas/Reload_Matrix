@@ -12,7 +12,7 @@ class WalletService:
         self.db = db
 
     def create_wallet(
-        self, wallet: wallet_schema.WalletCreate, company_id: int
+        self, wallet: wallet_schema.WalletCreate, company_id: int, commit: bool = False
     ) -> Wallet:
         db_company = (
             self.db.query(company_model.Company)
@@ -24,7 +24,9 @@ class WalletService:
 
         db_wallet = Wallet(**wallet.model_dump(), company_id=company_id)
         self.db.add(db_wallet)
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_wallet)
         return db_wallet
 
@@ -65,7 +67,7 @@ class WalletService:
 
     def deposit(
         self, wallet_id: int, amount: Decimal, description: str, company_id: int, user_id: Optional[int] = None,
-        account_type: Optional[str] = None, account_id: Optional[int] = None, commit: bool = True
+        account_type: Optional[str] = None, account_id: Optional[int] = None, commit: bool = False
     ) -> WalletTransaction:
         if amount <= 0:
             raise ValueError("El monto del depósito debe ser mayor a cero")
@@ -171,7 +173,7 @@ class WalletService:
 
     def withdraw(
         self, wallet_id: int, amount: Decimal, description: str, company_id: int, user_id: Optional[int] = None,
-        account_type: Optional[str] = None, account_id: Optional[int] = None, commit: bool = True
+        account_type: Optional[str] = None, account_id: Optional[int] = None, commit: bool = False
     ) -> WalletTransaction:
         if amount <= 0:
             raise ValueError("El monto del retiro debe ser mayor a cero")
@@ -295,7 +297,7 @@ class WalletService:
         )
 
     def add_loyalty_points(
-        self, wallet_id: int, points: Decimal, company_id: int, description: str = ""
+        self, wallet_id: int, points: Decimal, company_id: int, description: str = "", commit: bool = False
     ) -> Wallet:
         """
         Agrega puntos de lealtad al monedero.
@@ -306,12 +308,14 @@ class WalletService:
             raise ValueError("Wallet not found")
 
         wallet.loyalty_points = (wallet.loyalty_points or Decimal("0.00")) + points
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(wallet)
         return wallet
 
     def redeem_loyalty_points(
-        self, wallet_id: int, points: Decimal, company_id: int
+        self, wallet_id: int, points: Decimal, company_id: int, commit: bool = False
     ) -> Wallet:
         """
         Canjea puntos de lealtad por saldo.
@@ -326,7 +330,9 @@ class WalletService:
             raise ValueError("Insufficient loyalty points")
 
         wallet.loyalty_points = current_points - points
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(wallet)
         return wallet
 

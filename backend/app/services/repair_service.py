@@ -62,11 +62,13 @@ class RepairService:
 
     # Technician methods
     def create_technician(
-        self, technician: rep_schema.TechnicianCreate, company_id: int
+        self, technician: rep_schema.TechnicianCreate, company_id: int, commit: bool = False
     ) -> Technician:
         db_tech = Technician(**technician.model_dump(), company_id=company_id)
         self.db.add(db_tech)
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_tech)
         return db_tech
 
@@ -126,26 +128,30 @@ class RepairService:
         technician_id: int,
         technician: rep_schema.TechnicianCreate,
         company_id: int,
+        commit: bool = False,
     ) -> Optional[Technician]:
         db_tech = self.get_technician_by_id(technician_id, company_id)
         if db_tech:
             for key, value in technician.model_dump().items():
                 setattr(db_tech, key, value)
-            self.db.commit()
+            self.db.flush()
+            if commit:
+                self.db.commit()
             self.db.refresh(db_tech)
         return db_tech
 
-    def delete_technician(self, technician_id: int, company_id: int) -> bool:
+    def delete_technician(self, technician_id: int, company_id: int, commit: bool = False) -> bool:
         db_tech = self.get_technician_by_id(technician_id, company_id)
         if db_tech:
             self.db.delete(db_tech)
-            self.db.commit()
+            if commit:
+                self.db.commit()
             return True
         return False
 
     # Repair Order methods
     def create_repair_order(
-        self, repair_order: rep_schema.RepairOrderCreate, company_id: int
+        self, repair_order: rep_schema.RepairOrderCreate, company_id: int, commit: bool = False
     ) -> RepairOrder:
         ro_data = repair_order.model_dump()
         if not ro_data.get("order_number") or ro_data["order_number"].startswith("REP-17"):
@@ -153,12 +159,14 @@ class RepairService:
             
         db_ro = RepairOrder(**ro_data, company_id=company_id)
         self.db.add(db_ro)
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_ro)
         return db_ro
 
     def create_repair_order_simple(
-        self, repair_order: rep_schema.RepairOrderSimpleCreate, company_id: int
+        self, repair_order: rep_schema.RepairOrderSimpleCreate, company_id: int, commit: bool = False
     ) -> RepairOrder:
         order_number = repair_order.order_number
         if not order_number or order_number.startswith("REP-17"):
@@ -200,7 +208,8 @@ class RepairService:
             )
             self.db.add(db_ri)
 
-        self.db.commit()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_ro)
         return db_ro
 
@@ -208,6 +217,7 @@ class RepairService:
         self,
         repair_order_with_items: rep_schema.RepairOrderWithItemsCreate,
         company_id: int,
+        commit: bool = False,
     ) -> RepairOrder:
         order_number = repair_order_with_items.order_number
         if not order_number or order_number.startswith("REP-17"):
@@ -219,17 +229,20 @@ class RepairService:
             partner_id=repair_order_with_items.partner_id,
             technician_id=repair_order_with_items.technician_id,
             issue_date=repair_order_with_items.issue_date,
-            expected_delivery_date=repair_order_with_items.expected_completion_date,  # Mapping old field to new
-            actual_delivery_date=repair_order_with_items.completion_date,  # Mapping old field to new
-            problem_description=repair_order_with_items.description,
+            expected_delivery_date=repair_order_with_items.expected_delivery_date,
+            actual_delivery_date=repair_order_with_items.actual_delivery_date,
+            problem_description=repair_order_with_items.problem_description,
+            diagnosis=repair_order_with_items.diagnosis,
+            service_notes=repair_order_with_items.service_notes,
             status=repair_order_with_items.status,
+            warranty_applied=repair_order_with_items.warranty_applied,
             total_labor_cost=Decimal("0.00"),  # Will be calculated from items
             total_parts_cost=Decimal("0.00"),  # Will be calculated from items
             total_amount=repair_order_with_items.total_amount,
             cufe=repair_order_with_items.cufe,
             xml_ubl=repair_order_with_items.xml_ubl,
-            estado_dian=repair_order_with_items.dian_response,  # Mapping old field to new
-            motivo_rechazo=None,  # New field, initially None
+            estado_dian=repair_order_with_items.estado_dian,
+            motivo_rechazo=repair_order_with_items.motivo_rechazo,
             company_id=company_id,
         )
         self.db.add(db_ro)
@@ -248,7 +261,7 @@ class RepairService:
                 brand=item.brand,
                 issue_reported=item.issue_reported,
                 quantity=item.quantity,
-                unit_cost=item.unit_price,  # Mapping unit_price to unit_cost
+                unit_cost=item.unit_cost,
                 discount=item.discount,
                 tax_rate=item.tax_rate,
                 tax_amount=item.tax_amount,
@@ -272,7 +285,8 @@ class RepairService:
         db_ro.total_parts_cost = total_parts_cost
         db_ro.total_amount = total_parts_cost  # Simplified for now
 
-        self.db.commit()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_ro)
         return db_ro
 
@@ -326,6 +340,7 @@ class RepairService:
         repair_order_id: int,
         repair_order: rep_schema.RepairOrderUpdate,
         company_id: int,
+        commit: bool = False,
     ) -> Optional[RepairOrder]:
         db_ro = self.get_repair_order_by_id(repair_order_id, company_id)
         if db_ro:
@@ -333,19 +348,22 @@ class RepairService:
             for key, value in update_data.items():
                 if value is not None:
                     setattr(db_ro, key, value)
-            self.db.commit()
+            self.db.flush()
+            if commit:
+                self.db.commit()
             self.db.refresh(db_ro)
         return db_ro
 
-    def delete_repair_order(self, repair_order_id: int, company_id: int) -> bool:
+    def delete_repair_order(self, repair_order_id: int, company_id: int, commit: bool = False) -> bool:
         db_ro = self.get_repair_order_by_id(repair_order_id, company_id)
         if db_ro:
             self.db.delete(db_ro)
-            self.db.commit()
+            if commit:
+                self.db.commit()
             return True
         return False
 
-    def cancel_repair_order(self, repair_order_id: int, company_id: int) -> RepairOrder:
+    def cancel_repair_order(self, repair_order_id: int, company_id: int, commit: bool = False) -> RepairOrder:
         """
         Cancel a repair order and reverse all effects (inventory, invoice)
         """
@@ -394,7 +412,9 @@ class RepairService:
 
             # 3. Marcar como cancelada
             db_ro.status = "CANCELLED"
-            self.db.commit()
+            self.db.flush()
+            if commit:
+                self.db.commit()
             self.db.refresh(db_ro)
             
             return db_ro
@@ -408,6 +428,7 @@ class RepairService:
         repair_item: rep_schema.RepairItemCreate,
         repair_order_id: int,
         company_id: int,
+        commit: bool = False,
     ) -> RepairItem:
         # Verify repair order exists
         db_ro = self.get_repair_order_by_id(repair_order_id, company_id)
@@ -443,12 +464,13 @@ class RepairService:
                 db_ro.total_labor_cost += repair_item.line_total
             db_ro.total_amount += repair_item.line_total
 
-        self.db.commit()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_ri)
         return db_ri
 
     def delete_repair_item(
-        self, item_id: int, repair_order_id: int, company_id: int
+        self, item_id: int, repair_order_id: int, company_id: int, commit: bool = False
     ) -> bool:
         from app.models.sql.repair import RepairItem
 
@@ -474,11 +496,12 @@ class RepairService:
                 db_ro.total_amount -= item.line_total
 
         self.db.delete(item)
-        self.db.commit()
+        if commit:
+            self.db.commit()
         return True
 
     def apply_warranty(
-        self, repair_order_id: int, company_id: int
+        self, repair_order_id: int, company_id: int, commit: bool = False
     ) -> Optional[RepairOrder]:
         """
         Apply warranty to a repair order - marks it as warranty work
@@ -490,12 +513,14 @@ class RepairService:
             # When warranty is applied, the customer doesn't pay
             # but we still track costs internally
             db_ro.total_amount = Decimal("0.00")
-            self.db.commit()
+            self.db.flush()
+            if commit:
+                self.db.commit()
             self.db.refresh(db_ro)
         return db_ro
 
     def create_invoice_from_repair(
-        self, repair_order_id: int, company_id: int, payment_data: Optional[POSPayment] = None
+        self, repair_order_id: int, company_id: int, payment_data: Optional[POSPayment] = None, commit: bool = False
     ) -> Optional[Invoice]:
         """
         Automatically generate an invoice from a completed repair order
@@ -669,13 +694,14 @@ class RepairService:
                 skip_journal_entry=True
             )
 
-        self.db.commit()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_invoice)
         return db_invoice
 
     # Warranty methods
     def create_warranty(
-        self, warranty: rep_schema.WarrantyCreate, company_id: int
+        self, warranty: rep_schema.WarrantyCreate, company_id: int, commit: bool = False
     ) -> Warranty:
         if warranty.start_date >= warranty.end_date:
             raise ValueError("End date must be after start date")
@@ -715,7 +741,9 @@ class RepairService:
             status="ACTIVE",
         )
         self.db.add(db_warranty)
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_warranty)
         return db_warranty
 
@@ -756,7 +784,7 @@ class RepairService:
         )
 
     def update_warranty_status(
-        self, warranty_id: int, company_id: int, status: str
+        self, warranty_id: int, company_id: int, status: str, commit: bool = False
     ) -> Optional[Warranty]:
         allowed = ["ACTIVE", "EXPIRED", "VOID", "CLAIMED"]
         if status not in allowed:
@@ -765,7 +793,9 @@ class RepairService:
         db_warranty = self.get_warranty_by_id(warranty_id, company_id)
         if db_warranty:
             db_warranty.status = status
-            self.db.commit()
+            self.db.flush()
+            if commit:
+                self.db.commit()
             self.db.refresh(db_warranty)
         return db_warranty
 
@@ -774,6 +804,7 @@ class RepairService:
         warranty_id: int,
         company_id: int,
         claim: rep_schema.WarrantyClaim,
+        commit: bool = False,
     ) -> Optional[Warranty]:
         db_warranty = self.get_warranty_by_id(warranty_id, company_id)
         if not db_warranty:
@@ -784,18 +815,21 @@ class RepairService:
 
         if db_warranty.end_date < datetime.now(timezone.utc):
             db_warranty.status = "EXPIRED"
-            self.db.commit()
+            if commit:
+                self.db.commit()
             raise ValueError("Warranty has expired")
 
         db_warranty.status = "CLAIMED"
         db_warranty.claim_date = datetime.now(timezone.utc)
         db_warranty.claim_description = claim.claim_description
         db_warranty.claim_resolution = claim.claim_resolution
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_warranty)
         return db_warranty
 
-    def check_expired_warranties(self, company_id: int) -> List[Warranty]:
+    def check_expired_warranties(self, company_id: int, commit: bool = False) -> List[Warranty]:
         now = datetime.now(timezone.utc)
         expired = (
             self.db.query(Warranty)
@@ -808,14 +842,15 @@ class RepairService:
         )
         for w in expired:
             w.status = "EXPIRED"
-        if expired:
+        if expired and commit:
             self.db.commit()
         return expired
 
-    def delete_warranty(self, warranty_id: int, company_id: int) -> bool:
+    def delete_warranty(self, warranty_id: int, company_id: int, commit: bool = False) -> bool:
         db_warranty = self.get_warranty_by_id(warranty_id, company_id)
         if db_warranty:
             self.db.delete(db_warranty)
-            self.db.commit()
+            if commit:
+                self.db.commit()
             return True
         return False

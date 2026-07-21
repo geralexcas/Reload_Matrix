@@ -41,6 +41,7 @@ def create_partner(
     service = partner_service.PartnerService(db)
     try:
         created_partner = service.create_partner(partner, company_id)
+        db.commit()
         
         # Additional verification: ensure the partner can be retrieved
         verify_partner = (
@@ -148,6 +149,7 @@ def update_partner(
 
     service = partner_service.PartnerService(db)
     db_partner = service.update_partner(partner_id, partner, company_id)
+    db.commit()
     if db_partner is None:
         raise HTTPException(status_code=404, detail="Partner not found")
     return db_partner
@@ -175,6 +177,7 @@ def delete_partner(
 
     service = partner_service.PartnerService(db)
     success = service.delete_partner(partner_id, company_id)
+    db.commit()
     if not success:
         raise HTTPException(status_code=404, detail="Partner not found")
     return None

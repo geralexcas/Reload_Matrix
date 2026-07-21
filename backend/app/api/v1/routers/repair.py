@@ -44,7 +44,9 @@ def create_repair_order(
         raise HTTPException(status_code=404, detail="Company not found")
 
     service = repair_service.RepairService(db)
-    return service.create_repair_order(repair_order, company_id)
+    result = service.create_repair_order(repair_order, company_id)
+    db.commit()
+    return result
 
 
 @router.post(
@@ -76,7 +78,9 @@ def create_repair_order_simple(
         raise HTTPException(status_code=404, detail="Company not found")
 
     service = repair_service.RepairService(db)
-    return service.create_repair_order_simple(repair_order, company_id)
+    result = service.create_repair_order_simple(repair_order, company_id)
+    db.commit()
+    return result
 
 
 @router.post(
@@ -104,7 +108,9 @@ def create_repair_order_with_items(
         raise HTTPException(status_code=404, detail="Company not found")
 
     service = repair_service.RepairService(db)
-    return service.create_repair_order_with_items(repair_order_with_items, company_id)
+    result = service.create_repair_order_with_items(repair_order_with_items, company_id)
+    db.commit()
+    return result
 
 
 @router.get("/", response_model=List[rep_schema.RepairOrderResponse])
@@ -186,6 +192,7 @@ def update_repair_order(
     db_repair_order = service.update_repair_order(
         repair_order_id, repair_order, company_id
     )
+    db.commit()
     if db_repair_order is None:
         raise HTTPException(status_code=404, detail="Repair order not found")
     return db_repair_order
@@ -213,6 +220,7 @@ def create_repair_item(
 
     service = repair_service.RepairService(db)
     db_item = service.create_repair_item(item, repair_order_id, company_id)
+    db.commit()
     return db_item
 
 
@@ -240,6 +248,7 @@ def delete_repair_item(
 
     service = repair_service.RepairService(db)
     success = service.delete_repair_item(item_id, repair_order_id, company_id)
+    db.commit()
     if not success:
         raise HTTPException(status_code=404, detail="Repair item not found")
 
@@ -265,6 +274,7 @@ def delete_repair_order(
 
     service = repair_service.RepairService(db)
     success = service.delete_repair_order(repair_order_id, company_id)
+    db.commit()
     if not success:
         raise HTTPException(status_code=404, detail="Repair order not found")
     return None
@@ -291,7 +301,9 @@ def cancel_repair_order(
 
     service = repair_service.RepairService(db)
     try:
-        return service.cancel_repair_order(repair_order_id, company_id)
+        result = service.cancel_repair_order(repair_order_id, company_id)
+        db.commit()
+        return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -325,6 +337,7 @@ def apply_warranty_to_repair_order(
 
     service = repair_service.RepairService(db)
     db_repair_order = service.apply_warranty(repair_order_id, company_id)
+    db.commit()
     if db_repair_order is None:
         raise HTTPException(status_code=404, detail="Repair order not found")
     return db_repair_order
@@ -355,7 +368,9 @@ def create_warranty(
 
     service = repair_service.RepairService(db)
     try:
-        return service.create_warranty(warranty, company_id)
+        result = service.create_warranty(warranty, company_id)
+        db.commit()
+        return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -467,6 +482,7 @@ def update_warranty_status(
         db_warranty = service.update_warranty_status(
             warranty_id, company_id, new_status
         )
+        db.commit()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     if db_warranty is None:
@@ -499,7 +515,9 @@ def file_warranty_claim(
 
     service = repair_service.RepairService(db)
     try:
-        return service.file_warranty_claim(warranty_id, company_id, claim)
+        result = service.file_warranty_claim(warranty_id, company_id, claim)
+        db.commit()
+        return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -526,7 +544,9 @@ def check_expired_warranties(
         raise HTTPException(status_code=404, detail="Company not found")
 
     service = repair_service.RepairService(db)
-    return service.check_expired_warranties(company_id)
+    result = service.check_expired_warranties(company_id)
+    db.commit()
+    return result
 
 
 @router.delete("/warranties/{warranty_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -550,6 +570,7 @@ def delete_warranty(
 
     service = repair_service.RepairService(db)
     success = service.delete_warranty(warranty_id, company_id)
+    db.commit()
     if not success:
         raise HTTPException(status_code=404, detail="Warranty not found")
     return None
@@ -583,6 +604,7 @@ def generate_invoice_from_repair_order(
     service = repair_service.RepairService(db)
     try:
         db_invoice = service.create_invoice_from_repair(repair_order_id, company_id, payment_data)
+        db.commit()
         # Return the repair order with updated invoice link
         db_repair_order = service.get_repair_order_with_items(
             repair_order_id, company_id
@@ -618,7 +640,9 @@ def create_technician(
         raise HTTPException(status_code=404, detail="Company not found")
 
     service = repair_service.RepairService(db)
-    return service.create_technician(technician, company_id)
+    result = service.create_technician(technician, company_id)
+    db.commit()
+    return result
 
 
 @router.get("/technicians/", response_model=List[rep_schema.TechnicianResponse])
@@ -700,6 +724,7 @@ def update_technician(
 
     service = repair_service.RepairService(db)
     db_technician = service.update_technician(technician_id, technician, company_id)
+    db.commit()
     if db_technician is None:
         raise HTTPException(status_code=404, detail="Technician not found")
     return db_technician
@@ -727,6 +752,7 @@ def delete_technician(
 
     service = repair_service.RepairService(db)
     success = service.delete_technician(technician_id, company_id)
+    db.commit()
     if not success:
         raise HTTPException(status_code=404, detail="Technician not found")
     return None

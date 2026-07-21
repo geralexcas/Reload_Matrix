@@ -14,7 +14,7 @@ class InventoryService:
         self.db = db
 
     def create_product(
-        self, product: inv_schema.ProductCreate, company_id: int, commit: bool = True
+        self, product: inv_schema.ProductCreate, company_id: int, commit: bool = False
     ) -> Product:
         # Validate barcode uniqueness if provided
         if product.barcode:
@@ -162,7 +162,7 @@ class InventoryService:
         return db_product
 
     def bulk_create_products(
-        self, bulk_data: inv_schema.ProductBulkCreate, company_id: int
+        self, bulk_data: inv_schema.ProductBulkCreate, company_id: int, commit: bool = False
     ) -> List[Product]:
         """Create multiple products at once, each with a unique barcode and SKU."""
         created_products = []
@@ -196,7 +196,9 @@ class InventoryService:
                 self.db.rollback()
                 raise e
                 
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         for p in created_products:
             self.db.refresh(p)
         return created_products
@@ -256,7 +258,7 @@ class InventoryService:
         )
 
     def update_product(
-        self, product_id: int, product: inv_schema.ProductCreate, company_id: int
+        self, product_id: int, product: inv_schema.ProductCreate, company_id: int, commit: bool = False
     ) -> Optional[Product]:
         db_product = self.get_product_by_id(product_id, company_id)
         if db_product:
@@ -276,27 +278,31 @@ class InventoryService:
 
             for key, value in product.model_dump(exclude={'skip_initial_stock_purchase', 'stock_level', 'purchase_price'}).items():
                 setattr(db_product, key, value)
-            self.db.commit()
+            self.db.flush()
+            if commit:
+                self.db.commit()
             self.db.refresh(db_product)
         return db_product
 
-    def delete_product(self, product_id: int, company_id: int) -> bool:
+    def delete_product(self, product_id: int, company_id: int, commit: bool = False) -> bool:
         db_product = self.get_product_by_id(product_id, company_id)
         if db_product:
             from sqlalchemy.exc import IntegrityError
             try:
                 self.db.delete(db_product)
-                self.db.commit()
+                if commit:
+                    self.db.commit()
                 return True
             except IntegrityError:
                 self.db.rollback()
                 db_product.is_active = False
-                self.db.commit()
+                if commit:
+                    self.db.commit()
                 raise ValueError("El producto tiene movimientos históricos registrados (facturas, compras o asientos). Por seguridad contable, se ha marcado como INACTIVO en lugar de eliminarse.")
         return False
 
     def adjust_stock_level(
-        self, product_id: int, adjustment: int, company_id: int
+        self, product_id: int, adjustment: int, company_id: int, commit: bool = False
     ) -> Optional[Product]:
         """Adjust stock level by a positive or negative amount"""
         db_product = self.db.query(Product).filter(
@@ -322,12 +328,14 @@ class InventoryService:
             reference_type=None,
         )
         self.db.add(movement)
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_product)
         return db_product
 
     def deduct_stock(
-        self, product_id: int, quantity: Decimal, company_id: int, commit: bool = True
+        self, product_id: int, quantity: Decimal, company_id: int, commit: bool = False
     ) -> Optional[Product]:
         """Deduct stock for a product. Returns the updated product or raises error."""
         from decimal import Decimal
@@ -383,7 +391,7 @@ class InventoryService:
         reference_id: int = None,
         reference_type: str = None,
         unit_price: Optional[Decimal] = None,
-        commit: bool = True,
+        commit: bool = False,
     ) -> Product:
         """Add stock for a product (e.g., from a purchase)."""
         db_product = self.db.query(Product).filter(Product.id == product_id, Product.company_id == company_id).with_for_update().first()

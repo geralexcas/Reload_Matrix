@@ -34,7 +34,9 @@ def create_wallet(
         raise HTTPException(status_code=404, detail="Company not found")
 
     service = wallet_service.WalletService(db)
-    return service.create_wallet(wallet, company_id)
+    result = service.create_wallet(wallet, company_id)
+    db.commit()
+    return result
 
 
 @router.get("/", response_model=List[wallet_schema.WalletResponse])
@@ -107,7 +109,9 @@ def deposit_to_wallet(
 
     service = wallet_service.WalletService(db)
     try:
-        return service.deposit(wallet_id, amount, description, company_id, current_user.id, account_type, account_id)
+        result = service.deposit(wallet_id, amount, description, company_id, current_user.id, account_type, account_id)
+        db.commit()
+        return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -138,7 +142,9 @@ def withdraw_from_wallet(
 
     service = wallet_service.WalletService(db)
     try:
-        return service.withdraw(wallet_id, amount, description, company_id, current_user.id, account_type, account_id)
+        result = service.withdraw(wallet_id, amount, description, company_id, current_user.id, account_type, account_id)
+        db.commit()
+        return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -194,6 +200,7 @@ def add_loyalty_points(
         wallet = service.add_loyalty_points(
             wallet_id, Decimal(str(points)), company_id, description
         )
+        db.commit()
         return {
             "wallet_id": wallet_id,
             "loyalty_points": float(wallet.loyalty_points or 0),
@@ -224,6 +231,7 @@ def redeem_loyalty_points(
         wallet = service.redeem_loyalty_points(
             wallet_id, Decimal(str(points)), company_id
         )
+        db.commit()
         return {
             "wallet_id": wallet_id,
             "loyalty_points": float(wallet.loyalty_points or 0),

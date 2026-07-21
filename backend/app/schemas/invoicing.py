@@ -131,6 +131,8 @@ class InvoiceWithItemsCreate(BaseModel):
     payment_account_id: Optional[int] = None
     wallet_amount_applied: Decimal = Field(default=Decimal("0.00"), decimal_places=2)
     repair_id: Optional[int] = None
+    amount_paid: Optional[Decimal] = None
+    reference: Optional[str] = None
     items: List[InvoiceItemCreate]
 
     @field_validator("invoice_type")

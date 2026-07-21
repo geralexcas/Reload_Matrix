@@ -43,7 +43,9 @@ def create_chart_of_accounts(
         raise HTTPException(status_code=404, detail="Company not found")
 
     service = accounting_service.AccountingService(db)
-    return service.create_chart_of_accounts(coa, company_id)
+    result = service.create_chart_of_accounts(coa, company_id)
+    db.commit()
+    return result
 
 
 @router.get(
@@ -135,6 +137,7 @@ def update_chart_of_account(
     db_coa = service.update_chart_of_accounts(coa_id, coa, company_id)
     if db_coa is None:
         raise HTTPException(status_code=404, detail="Chart of accounts not found")
+    db.commit()
     return db_coa
 
 
@@ -163,6 +166,7 @@ def delete_chart_of_account(
     success = service.delete_chart_of_accounts(coa_id, company_id)
     if not success:
         raise HTTPException(status_code=404, detail="Chart of accounts not found")
+    db.commit()
     return None
 
 
@@ -193,7 +197,9 @@ def create_journal_entry(
         raise HTTPException(status_code=404, detail="Company not found")
 
     service = accounting_service.AccountingService(db)
-    return service.create_journal_entry(je, company_id)
+    result = service.create_journal_entry(je, company_id)
+    db.commit()
+    return result
 
 
 @router.post(
@@ -222,7 +228,9 @@ def create_journal_entry_with_lines(
         raise HTTPException(status_code=404, detail="Company not found")
 
     service = accounting_service.AccountingService(db)
-    return service.create_journal_entry_with_lines(je_with_lines, company_id)
+    result = service.create_journal_entry_with_lines(je_with_lines, company_id)
+    db.commit()
+    return result
 
 
 @router.get(
@@ -348,6 +356,7 @@ def post_journal_entry(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Journal entry not found or already posted",
         )
+    db.commit()
     return db_je
 
 

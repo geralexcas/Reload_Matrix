@@ -64,6 +64,7 @@ class PurchaseService:
         purchase_data: purchase_schema.PurchaseWithItemsCreate,
         company_id: int,
         user_id: int = None,
+        commit: bool = False,
     ) -> Purchase:
         """Create a new purchase invoice with items"""
         # Verify purchase number doesn't already exist to prevent duplicates
@@ -212,7 +213,9 @@ class PurchaseService:
                     self._create_treasury_transaction(db_purchase, db_payment, company_id)
 
         try:
-            self.db.commit()
+            self.db.flush()
+            if commit:
+                self.db.commit()
             self.db.refresh(db_purchase)
         except Exception as e:
             self.db.rollback()
@@ -404,6 +407,7 @@ class PurchaseService:
         purchase_id: int,
         purchase_data: purchase_schema.PurchaseUpdate,
         company_id: int,
+        commit: bool = False,
     ) -> Optional[Purchase]:
         """Update a purchase"""
         db_purchase = self.get_purchase_by_id(purchase_id, company_id)
@@ -440,7 +444,9 @@ class PurchaseService:
         for key, value in update_data.items():
             setattr(db_purchase, key, value)
 
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_purchase)
 
         # Only update inventory/accounting when status CHANGES to ISSUED (not on every save)
@@ -469,10 +475,12 @@ class PurchaseService:
                     )
                     self.db.add(db_payment)
                     db_purchase.status = "PAID"
-                    self.db.commit()
+                    if commit:
+                        self.db.commit()
                     self._create_treasury_transaction(db_purchase, db_payment, company_id)
                 else:
-                    self.db.commit()
+                    if commit:
+                        self.db.commit()
 
         return db_purchase
         if not db_purchase:
@@ -482,10 +490,11 @@ class PurchaseService:
             raise ValueError("Only DRAFT purchases can be deleted")
 
         self.db.delete(db_purchase)
-        self.db.commit()
+        if commit:
+            self.db.commit()
         return True
 
-    def cancel_purchase(self, purchase_id: int, company_id: int) -> Purchase:
+    def cancel_purchase(self, purchase_id: int, company_id: int, commit: bool = False) -> Purchase:
         """
         Cancel a purchase and reverse its effects.
         - Reverse inventory stock
@@ -557,7 +566,9 @@ class PurchaseService:
 
         # 4. Set status to CANCELLED
         db_purchase.status = "CANCELLED"
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_purchase)
         
         return db_purchase
@@ -568,6 +579,7 @@ class PurchaseService:
         payment_data: purchase_schema.PurchasePaymentCreate,
         company_id: int,
         user_id: int = None,
+        commit: bool = False,
     ) -> PurchasePayment:
         """Register a payment for a purchase"""
         db_purchase = self.get_purchase_by_id(purchase_id, company_id)
@@ -605,7 +617,9 @@ class PurchaseService:
         else:
             db_purchase.status = "PARTIAL"
 
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(db_payment)
 
         # Create treasury transaction if payment is not credit

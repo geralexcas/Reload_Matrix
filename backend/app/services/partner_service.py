@@ -55,7 +55,7 @@ class PartnerService:
         return dv_expected == dv
 
     def create_partner(
-        self, partner: partner_schema.PartnerCreate, company_id: int
+        self, partner: partner_schema.PartnerCreate, company_id: int, commit: bool = False
     ) -> partner_model.Partner:
         # Verify company exists
         db_company = (
@@ -77,9 +77,11 @@ class PartnerService:
             **partner_data, company_id=company_id
         )
         self.db.add(db_partner)
+        self.db.flush()
         
         try:
-            self.db.commit()
+            if commit:
+                self.db.commit()
             self.db.refresh(db_partner)
             
             # Verify the partner was actually saved by querying it back
@@ -126,7 +128,7 @@ class PartnerService:
         )
 
     def update_partner(
-        self, partner_id: int, partner: partner_schema.PartnerCreate, company_id: int
+        self, partner_id: int, partner: partner_schema.PartnerCreate, company_id: int, commit: bool = False
     ) -> Optional[partner_model.Partner]:
         db_partner = self.get_partner_by_id(partner_id, company_id)
         if db_partner:
@@ -139,14 +141,17 @@ class PartnerService:
 
             for key, value in partner_data.items():
                 setattr(db_partner, key, value)
-            self.db.commit()
+            self.db.flush()
+            if commit:
+                self.db.commit()
             self.db.refresh(db_partner)
         return db_partner
 
-    def delete_partner(self, partner_id: int, company_id: int) -> bool:
+    def delete_partner(self, partner_id: int, company_id: int, commit: bool = False) -> bool:
         db_partner = self.get_partner_by_id(partner_id, company_id)
         if db_partner:
             self.db.delete(db_partner)
-            self.db.commit()
+            if commit:
+                self.db.commit()
             return True
         return False

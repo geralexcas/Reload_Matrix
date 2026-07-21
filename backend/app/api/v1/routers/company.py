@@ -113,6 +113,7 @@ def create_company(
 
     accounting_svc = accounting_service.AccountingService(db)
     accounting_svc.create_default_chart_of_accounts(db_company.id)
+    db.commit()
 
     return db_company
 
@@ -266,7 +267,9 @@ def create_billing_range(
         raise HTTPException(status_code=404, detail="Company not found")
 
     service = dbr_service.DianBillingRangeService(db)
-    return service.create_range(range_data, company_id)
+    result = service.create_range(range_data, company_id)
+    db.commit()
+    return result
 
 
 @router.get(
@@ -314,6 +317,8 @@ def consume_billing_number(
 ):
     service = dbr_service.DianBillingRangeService(db)
     success = service.consume_number(range_id, company_id)
+    if success:
+        db.commit()
     if not success:
         raise HTTPException(
             status_code=400,

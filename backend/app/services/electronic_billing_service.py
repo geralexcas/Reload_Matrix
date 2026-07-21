@@ -279,7 +279,7 @@ class ElectronicBillingService:
 
         return pretty_xml.decode("utf-8")
 
-    def send_to_dian(self, invoice_id: int, company_id: int) -> dict:
+    def send_to_dian(self, invoice_id: int, company_id: int, commit: bool = False) -> dict:
         """
         Envía la factura electrónica a la DIAN.
 
@@ -330,7 +330,9 @@ class ElectronicBillingService:
 
         # Update status to ENVIADO
         invoice.estado_dian = "ENVIADO"
-        self.db.commit()
+        self.db.flush()
+        if commit:
+            self.db.commit()
         self.db.refresh(invoice)
 
         # In production, here you would:
@@ -353,6 +355,7 @@ class ElectronicBillingService:
         company_id: int,
         status: str,
         motivo_rechazo: Optional[str] = None,
+        commit: bool = False,
     ) -> Optional[Invoice]:
         """
         Actualiza el estado de la factura según respuesta de la DIAN.
@@ -373,7 +376,9 @@ class ElectronicBillingService:
             invoice.estado_dian = status
             if motivo_rechazo:
                 invoice.motivo_rechazo = motivo_rechazo
-            self.db.commit()
+            self.db.flush()
+            if commit:
+                self.db.commit()
             self.db.refresh(invoice)
         return invoice
 
