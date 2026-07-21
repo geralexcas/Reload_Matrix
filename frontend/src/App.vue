@@ -16,9 +16,12 @@ export default {
     onMounted(async () => {
       if (store.getters['auth/isLoggedIn'] && !store.getters['auth/user']) {
         try {
-          await store.dispatch('auth/fetchProfile')
+          const user = await store.dispatch('auth/fetchProfile')
+          if (user?.company_id && !store.getters['company/hasCompany']) {
+            await store.dispatch('company/fetchCompany', user.company_id, { root: true })
+          }
         } catch (err) {
-          console.error('Failed to fetch user profile on load', err)
+          console.error('Failed to fetch user profile or company on load', err)
         }
       }
     })

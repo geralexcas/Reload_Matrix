@@ -7,6 +7,7 @@
         {{ isCollapsed ? '☰' : '✕' }}
       </button>
     </div>
+    <TrialProgressBar v-if="company" :company="company" />
     <nav class="sidebar-nav">
       <router-link to="/dashboard" class="nav-item" active-class="active">
         <span class="nav-icon">📊</span>
@@ -175,9 +176,13 @@
 import { computed, ref, onMounted, watch } from 'vue'
 import { useStore } from 'vuex'
 import { useRoute } from 'vue-router'
+import TrialProgressBar from '@/components/common/TrialProgressBar.vue'
 
 export default {
   name: 'SidebarNav',
+  components: {
+    TrialProgressBar
+  },
   props: {
     isCollapsed: {
       type: Boolean,
@@ -188,6 +193,11 @@ export default {
     const store = useStore()
     const route = useRoute()
     const user = computed(() => store.getters['auth/user'])
+    const company = computed(() => {
+      const c = store.getters['company/getCompany'];
+      console.log('SidebarNav company from store:', c);
+      return c;
+    })
     const isSuperuser = computed(() => user.value?.is_superuser || false)
     const isPlatformAdmin = computed(() => store.getters['auth/isPlatformAdmin'])
     const hasCompany = computed(() => store.getters['auth/hasCompany'])
@@ -222,6 +232,7 @@ export default {
       isSuperuser,
       isPlatformAdmin,
       hasCompany,
+      company,
       expandedMenus,
       toggleMenu
     }
