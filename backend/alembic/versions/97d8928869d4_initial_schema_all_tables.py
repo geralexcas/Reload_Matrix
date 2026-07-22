@@ -629,8 +629,136 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_repair_items_id"), "repair_items", ["id"], unique=False)
 
+    # 1. fiscal_periods
+    op.create_table(
+        "fiscal_periods",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("company_id", sa.Integer(), nullable=False),
+        sa.Column("start_date", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("end_date", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("is_closed", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True),
+        sa.ForeignKeyConstraint(["company_id"], ["companies.id"]),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_fiscal_periods_id"), "fiscal_periods", ["id"], unique=False)
+    op.create_index(op.f("ix_fiscal_periods_company_id"), "fiscal_periods", ["company_id"], unique=False)
+
+    # 2. product_price_history
+    op.create_table(
+        "product_price_history",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("product_id", sa.Integer(), nullable=False),
+        sa.Column("company_id", sa.Integer(), nullable=False),
+        sa.Column("price", sa.Numeric(precision=15, scale=2), nullable=False),
+        sa.Column("effective_date", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True),
+        sa.ForeignKeyConstraint(["company_id"], ["companies.id"]),
+        sa.ForeignKeyConstraint(["product_id"], ["products.id"]),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_product_price_history_id"), "product_price_history", ["id"], unique=False)
+    op.create_index(op.f("ix_product_price_history_product_id"), "product_price_history", ["product_id"], unique=False)
+    op.create_index(op.f("ix_product_price_history_company_id"), "product_price_history", ["company_id"], unique=False)
+
+    # 3. purchases
+    op.create_table(
+        "purchases",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("purchase_number", sa.String(length=50), nullable=False),
+        sa.Column("partner_id", sa.Integer(), nullable=False),
+        sa.Column("purchase_date", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column("due_date", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("subtotal", sa.Numeric(precision=15, scale=2), nullable=False, server_default="0.00"),
+        sa.Column("tax_amount", sa.Numeric(precision=15, scale=2), server_default="0.00"),
+        sa.Column("total_amount", sa.Numeric(precision=15, scale=2), nullable=False, server_default="0.00"),
+        sa.Column("discount_amount", sa.Numeric(precision=15, scale=2), server_default="0.00"),
+        sa.Column("currency", sa.String(length=3), server_default="COP"),
+        sa.Column(
+            "payment_method",
+            sa.Enum("CASH", "BANK_TRANSFER", "CHECK", "CREDIT_CARD", "CREDIT", "PARTIAL_CREDIT", name="payment_methods"),
+            nullable=False,
+            server_default="CREDIT",
+        ),
+        sa.Column(
+            "status",
+            sa.Enum("DRAFT", "ISSUED", "PAID", "PARTIAL", "OVERDUE", "CANCELLED", name="purchase_status"),
+            server_default="DRAFT",
+        ),
+        sa.Column("notes", sa.Text(), nullable=True),
+        sa.Column("company_id", sa.Integer(), nullable=False),
+        sa.Column("created_by", sa.Integer(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True),
+        sa.ForeignKeyConstraint(["company_id"], ["companies.id"]),
+        sa.ForeignKeyConstraint(["partner_id"], ["partners.id"]),
+        sa.ForeignKeyConstraint(["created_by"], ["users.id"]),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("purchase_number", "company_id", name="uq_purchase_number_company"),
+    )
+    op.create_index(op.f("ix_purchases_id"), "purchases", ["id"], unique=False)
+    op.create_index(op.f("ix_purchases_purchase_number"), "purchases", ["purchase_number"], unique=False)
+
+    # 4. purchase_items
+    op.create_table(
+        "purchase_items",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("purchase_id", sa.Integer(), nullable=False),
+        sa.Column("product_id", sa.Integer(), nullable=True),
+        sa.Column("description", sa.String(length=255), nullable=False),
+        sa.Column("quantity", sa.Numeric(precision=10, scale=2), nullable=False),
+        sa.Column("unit_price", sa.Numeric(precision=15, scale=2), nullable=False),
+        sa.Column("serial_number", sa.String(length=255), nullable=True),
+        sa.Column("discount_percent", sa.Numeric(precision=5, scale=2), server_default="0.00"),
+        sa.Column("discount_amount", sa.Numeric(precision=15, scale=2), server_default="0.00"),
+        sa.Column("tax_rate", sa.Numeric(precision=5, scale=2), server_default="0.00"),
+        sa.Column("tax_amount", sa.Numeric(precision=15, scale=2), server_default="0.00"),
+        sa.Column("line_total", sa.Numeric(precision=15, scale=2), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True),
+        sa.ForeignKeyConstraint(["purchase_id"], ["purchases.id"]),
+        sa.ForeignKeyConstraint(["product_id"], ["products.id"]),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_purchase_items_id"), "purchase_items", ["id"], unique=False)
+
+    # 5. purchase_payments
+    op.create_table(
+        "purchase_payments",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("purchase_id", sa.Integer(), nullable=False),
+        sa.Column(
+            "payment_method",
+            sa.Enum("CASH", "BANK_TRANSFER", "CHECK", "CREDIT_CARD", name="payment_methods"),
+            nullable=False,
+        ),
+        sa.Column("amount", sa.Numeric(precision=15, scale=2), nullable=False),
+        sa.Column("payment_date", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column("reference", sa.String(length=100), nullable=True),
+        sa.Column("notes", sa.Text(), nullable=True),
+        sa.Column("created_by", sa.Integer(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True),
+        sa.ForeignKeyConstraint(["purchase_id"], ["purchases.id"]),
+        sa.ForeignKeyConstraint(["created_by"], ["users.id"]),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_purchase_payments_id"), "purchase_payments", ["id"], unique=False)
+
 
 def downgrade() -> None:
+    op.drop_index(op.f("ix_purchase_payments_id"), table_name="purchase_payments")
+    op.drop_table("purchase_payments")
+    op.drop_index(op.f("ix_purchase_items_id"), table_name="purchase_items")
+    op.drop_table("purchase_items")
+    op.drop_index(op.f("ix_purchases_purchase_number"), table_name="purchases")
+    op.drop_index(op.f("ix_purchases_id"), table_name="purchases")
+    op.drop_table("purchases")
+    op.drop_index(op.f("ix_product_price_history_company_id"), table_name="product_price_history")
+    op.drop_index(op.f("ix_product_price_history_product_id"), table_name="product_price_history")
+    op.drop_index(op.f("ix_product_price_history_id"), table_name="product_price_history")
+    op.drop_table("product_price_history")
+    op.drop_index(op.f("ix_fiscal_periods_company_id"), table_name="fiscal_periods")
+    op.drop_index(op.f("ix_fiscal_periods_id"), table_name="fiscal_periods")
+    op.drop_table("fiscal_periods")
     op.drop_index(op.f("ix_repair_items_id"), table_name="repair_items")
     op.drop_table("repair_items")
     op.drop_index(op.f("ix_repair_orders_order_number"), table_name="repair_orders")
