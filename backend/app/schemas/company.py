@@ -44,6 +44,10 @@ class CompanyBase(BaseModel):
     model_config = {"from_attributes": True, "extra": "forbid"}
 
 
+class CompanyUpdate(CompanyBase):
+    is_trial: Optional[bool] = None
+
+
 class CompanyCreate(CompanyBase):
     admin_user: Optional["CompanyAdminUser"] = None
 

@@ -223,7 +223,7 @@ def read_company(
 @router.put("/{company_id}", response_model=company_schema.CompanyResponse)
 def update_company(
     company_id: int,
-    company: company_schema.CompanyBase,
+    company: company_schema.CompanyUpdate,
     company_dep: company_model.Company = Depends(verify_company_membership),
     db: Session = Depends(get_db),
     current_user: user_model.User = Depends(require_permission("company", "update")),
@@ -236,7 +236,7 @@ def update_company(
     if not db_company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    company_data = company.model_dump()
+    company_data = company.model_dump(exclude_unset=True)
     for key, value in company_data.items():
         setattr(db_company, key, value)
 
