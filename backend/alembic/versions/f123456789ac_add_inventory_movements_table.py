@@ -39,12 +39,6 @@ def upgrade() -> None:
             sa.Column("reference_type", sa.String(length=50), nullable=True),
             sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         )
-        op.create_index(
-            op.f('ix_inventory_movements_id'), 
-            'inventory_movements', 
-            ['id'], 
-            unique=False
-        )
 
 
 def downgrade() -> None:
