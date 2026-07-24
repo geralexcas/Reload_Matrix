@@ -391,6 +391,13 @@ export default {
         return
       }
 
+      const proceed = confirm(
+        `Desea guardar esta compra (${form.value.items.length} producto(s), total: ${formatNumber(totalAmount.value)})?\n\n` +
+        `• Presione Aceptar para GUARDAR la compra.\n` +
+        `• Presione Cancelar para AGREGAR MAS PRODUCTOS.`
+      )
+      if (!proceed) return
+
       // Si hay ítems sin asignar, preguntar si continuar sin ellos
       const unmatched = form.value.items.filter(item => !item.product_id)
       if (unmatched.length > 0) {
