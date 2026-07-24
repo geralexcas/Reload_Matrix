@@ -163,6 +163,20 @@
       <small class="form-text">Precio al que se vende el producto</small>
     </div>
     
+    <div class="form-group" v-if="isPurchaseFlow">
+      <label for="purchase_quantity">Cantidad a Comprar:*</label>
+      <input 
+        type="number" 
+        id="purchase_quantity" 
+        v-model.number="purchase_quantity" 
+        required
+        min="0.01"
+        step="0.01"
+        placeholder="0.00"
+      />
+      <small class="form-text">Unidades que ingresarán al inventario con la compra</small>
+    </div>
+    
     <div class="form-group" v-if="!isPurchaseFlow">
       <label for="stock_level">Nivel de Stock Actual:*</label>
       <input 
@@ -193,7 +207,7 @@
 
     <!-- Mensaje informativo cuando estamos en flujo de compra -->
     <div class="alert alert-info" v-if="isPurchaseFlow">
-      <p><strong>Nota:</strong> Al crear este producto desde una compra o PDF, el stock se inicializa en 0. La cantidad y el pago se registrarán automáticamente al finalizar la compra principal.</p>
+      <p><strong>Nota:</strong> El stock se inicializa en 0. La cantidad y el pago se registrarán automáticamente al agregar este producto a la compra.</p>
     </div>
     
     <div class="form-group">
@@ -286,6 +300,7 @@ export default {
         payment_method: 'CASH',
         is_active: true
       },
+      purchase_quantity: 1,
       is_serialized: false,
       barcodes_input: '',
       paymentMethods: [
@@ -349,7 +364,7 @@ export default {
             this.form.supplier_id = parsed.supplier_id
           }
           if (parsed.quantity) {
-            this.form.stock_level = parsed.quantity
+            this.purchase_quantity = parsed.quantity
           }
           if (parsed.payment_method) {
             this.form.payment_method = parsed.payment_method
@@ -439,6 +454,11 @@ export default {
         this.errors.sale_price = 'El precio de venta no puede ser negativo'
         isValid = false
       }
+
+      if (this.isPurchaseFlow && (!this.purchase_quantity || this.purchase_quantity <= 0)) {
+        this.errors.purchase_quantity = 'La cantidad a comprar debe ser mayor a 0'
+        isValid = false
+      }
       
       if (this.form.stock_level < 0) {
         this.errors.stock_level = 'El stock no puede ser negativo'
@@ -467,6 +487,14 @@ export default {
       if (this.isPurchaseFlow) {
         submissionData.stock_level = 0
         submissionData.skip_initial_stock_purchase = true
+        // Guardar cantidad de compra para que el formulario de compras la use al volver
+        sessionStorage.setItem('lastCreatedProduct', JSON.stringify({
+          name: this.form.name,
+          purchase_price: this.form.purchase_price,
+          unit_of_measure: this.form.unit_of_measure,
+          supplier_id: this.form.supplier_id,
+          purchase_quantity: this.purchase_quantity
+        }))
       }
 
       if (this.is_serialized && !this.editMode) {

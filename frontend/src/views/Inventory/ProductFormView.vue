@@ -125,7 +125,13 @@ export default {
           productData, 
           companyId 
         })
-        .then(() => {
+        .then(res => {
+          // Si venimos del flujo de compras, guardar el ID del producto creado
+          if (this.$route.query.redirect === '/purchases' && res?.data?.id) {
+            const existing = JSON.parse(sessionStorage.getItem('lastCreatedProduct') || '{}')
+            existing.id = res.data.id
+            sessionStorage.setItem('lastCreatedProduct', JSON.stringify(existing))
+          }
           this.$toast?.success('Producto creado exitosamente')
           this.goBack()
         })

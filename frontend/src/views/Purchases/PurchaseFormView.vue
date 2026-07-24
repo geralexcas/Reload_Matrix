@@ -515,6 +515,40 @@ export default {
         sessionStorage.removeItem('lastCreatedPartnerId')
       }
 
+      // Detectar si acabamos de crear un producto desde el flujo de compras
+      const lastProductRaw = sessionStorage.getItem('lastCreatedProduct')
+      if (lastProductRaw && !props.purchaseId) {
+        try {
+          const lastProduct = JSON.parse(lastProductRaw)
+          if (lastProduct.id) {
+            // Refrescar la lista de productos para incluir el recién creado
+            await fetchProducts()
+
+            const qty = parseFloat(lastProduct.purchase_quantity) || 1
+            const price = parseFloat(lastProduct.purchase_price) || 0
+            const product = products.value.find(p => p.id === lastProduct.id)
+
+            form.value.items.push({
+              product_id: lastProduct.id,
+              description: product?.name || lastProduct.name || 'Nuevo producto',
+              quantity: qty,
+              unit_price: price,
+              tax_rate: applyIva.value ? 19 : 0,
+              serial_number: '',
+              line_total: qty * price * (1 + (applyIva.value ? 0.19 : 0))
+            })
+
+            // Auto-seleccionar proveedor si el producto tiene uno y no hay proveedor seleccionado
+            if (!form.value.partner_id && lastProduct.supplier_id) {
+              form.value.partner_id = lastProduct.supplier_id
+            }
+          }
+        } catch (e) {
+          console.error('Error procesando último producto creado', e)
+        }
+        sessionStorage.removeItem('lastCreatedProduct')
+      }
+
       if (props.purchaseId) {
         await loadPurchaseData()
       }
