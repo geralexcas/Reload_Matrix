@@ -249,10 +249,9 @@ export default {
     const fetchSuppliers = async () => {
       try {
         const res = await store.dispatch('partners/fetchPartners', {
-          companyId: companyId.value,
-          partnerType: 'SUPPLIER'
+          companyId: companyId.value
         })
-        suppliers.value = res.data
+        suppliers.value = res.data.filter(p => p.partner_type === 'SUPPLIER')
       } catch (err) {
         console.error('Error fetching suppliers:', err)
       }
