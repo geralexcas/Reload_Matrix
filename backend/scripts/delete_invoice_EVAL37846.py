@@ -9,7 +9,6 @@ from app.models.sql.accounting.journal_entry import JournalEntry
 from app.models.sql.accounting.journal_entry_line import JournalEntryLine
 from app.models.sql.accounting.treasury_transaction import TreasuryTransaction
 from app.models.sql.inventory_movement import InventoryMovement
-from app.models.sql.inventory import Product
 from app.models.sql.partners import Partner
 from sqlalchemy import text
 
@@ -126,50 +125,60 @@ def _execute_deletion(db, purchase_id, je_ids, lines, treasury_txs,
 
     # 1. Journal entry lines
     if je_ids:
-        deleted = db.query(JournalEntryLine).filter(
-            JournalEntryLine.journal_entry_id.in_(je_ids)
-        ).delete(synchronize_session=False)
-        db.flush()
-        print(f"  Borradas {deleted} journal_entry_lines")
+        placeholders = ",".join([f":je{i}" for i in range(len(je_ids))])
+        params = {f"je{i}": je_id for i, je_id in enumerate(je_ids)}
+        result = db.execute(text(f"DELETE FROM journal_entry_lines WHERE journal_entry_id IN ({placeholders})"), params)
+        print(f"  Borradas {result.rowcount} journal_entry_lines")
 
     # 2. Inventory movements (revertir stock)
     for im in inv_movements:
         if im.movement_type and im.movement_type.value == "ADD":
-            product = db.query(Product).filter(Product.id == im.product_id).first()
-            if product:
-                product.quantity = (product.quantity or 0) - (im.quantity or 0)
-                print(f"  Stock revertido: product_id={im.product_id} -{im.quantity} (ahora {product.quantity})")
-        db.delete(im)
-    db.flush()
-    print(f"  Borrados {len(inv_movements)} inventory_movements")
+            db.execute(
+                text("UPDATE products SET quantity = quantity - :qty WHERE id = :pid"),
+                {"qty": float(im.quantity or 0), "pid": im.product_id}
+            )
+            print(f"  Stock revertido: product_id={im.product_id} -{im.quantity}")
+    if inv_movements:
+        im_ids = [im.id for im in inv_movements]
+        placeholders = ",".join([f":im{i}" for i in range(len(im_ids))])
+        params = {f"im{i}": im_id for i, im_id in enumerate(im_ids)}
+        result = db.execute(text(f"DELETE FROM inventory_movements WHERE id IN ({placeholders})"), params)
+        print(f"  Borrados {result.rowcount} inventory_movements")
 
     # 3. Treasury transactions
-    for tt in treasury_txs:
-        db.delete(tt)
-    db.flush()
-    print(f"  Borradas {len(treasury_txs)} treasury_transactions")
+    if treasury_txs:
+        tt_ids = [tt.id for tt in treasury_txs]
+        placeholders = ",".join([f":tt{i}" for i in range(len(tt_ids))])
+        params = {f"tt{i}": tt_id for i, tt_id in enumerate(tt_ids)}
+        result = db.execute(text(f"DELETE FROM treasury_transactions WHERE id IN ({placeholders})"), params)
+        print(f"  Borradas {result.rowcount} treasury_transactions")
 
     # 4. Journal entries
-    for je in db.query(JournalEntry).filter(JournalEntry.id.in_(je_ids)).all():
-        db.delete(je)
-    db.flush()
-    print(f"  Borrados {len(jes)} journal_entries")
+    if je_ids:
+        placeholders = ",".join([f":je{i}" for i in range(len(je_ids))])
+        params = {f"je{i}": je_id for i, je_id in enumerate(je_ids)}
+        result = db.execute(text(f"DELETE FROM journal_entries WHERE id IN ({placeholders})"), params)
+        print(f"  Borrados {result.rowcount} journal_entries")
 
     # 5. Purchase payments
-    for p in payments:
-        db.delete(p)
-    db.flush()
-    print(f"  Borradas {len(payments)} purchase_payments")
+    if payments:
+        pay_ids = [p.id for p in payments]
+        placeholders = ",".join([f":pay{i}" for i in range(len(pay_ids))])
+        params = {f"pay{i}": pay_id for i, pay_id in enumerate(pay_ids)}
+        result = db.execute(text(f"DELETE FROM purchase_payments WHERE id IN ({placeholders})"), params)
+        print(f"  Borradas {result.rowcount} purchase_payments")
 
-    # 6. Purchase items (MUST flush before deleting purchase)
-    for it in items:
-        db.delete(it)
-    db.flush()
-    print(f"  Borrados {len(items)} purchase_items")
+    # 6. Purchase items
+    if items:
+        it_ids = [it.id for it in items]
+        placeholders = ",".join([f":it{i}" for i in range(len(it_ids))])
+        params = {f"it{i}": it_id for i, it_id in enumerate(it_ids)}
+        result = db.execute(text(f"DELETE FROM purchase_items WHERE id IN ({placeholders})"), params)
+        print(f"  Borrados {result.rowcount} purchase_items")
 
     # 7. Purchase
-    db.execute(text("DELETE FROM purchases WHERE id = :id"), {"id": purchase_id})
-    print(f"  Borrada Purchase id={purchase_id}")
+    result = db.execute(text("DELETE FROM purchases WHERE id = :id"), {"id": purchase_id})
+    print(f"  Borrada Purchase id={purchase_id} (rows={result.rowcount})")
 
     db.commit()
 
