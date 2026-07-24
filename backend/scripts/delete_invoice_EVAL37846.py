@@ -129,6 +129,7 @@ def _execute_deletion(db, purchase_id, je_ids, lines, treasury_txs,
         deleted = db.query(JournalEntryLine).filter(
             JournalEntryLine.journal_entry_id.in_(je_ids)
         ).delete(synchronize_session=False)
+        db.flush()
         print(f"  Borradas {deleted} journal_entry_lines")
 
     # 2. Inventory movements (revertir stock)
@@ -139,27 +140,32 @@ def _execute_deletion(db, purchase_id, je_ids, lines, treasury_txs,
                 product.quantity = (product.quantity or 0) - (im.quantity or 0)
                 print(f"  Stock revertido: product_id={im.product_id} -{im.quantity} (ahora {product.quantity})")
         db.delete(im)
-        print(f"  Borrado InventoryMovement id={im.id}")
+    db.flush()
+    print(f"  Borrados {len(inv_movements)} inventory_movements")
 
     # 3. Treasury transactions
     for tt in treasury_txs:
         db.delete(tt)
-        print(f"  Borrada TreasuryTransaction id={tt.id}")
+    db.flush()
+    print(f"  Borradas {len(treasury_txs)} treasury_transactions")
 
     # 4. Journal entries
     for je in db.query(JournalEntry).filter(JournalEntry.id.in_(je_ids)).all():
         db.delete(je)
-        print(f"  Borrado JournalEntry id={je.id} ref={je.reference}")
+    db.flush()
+    print(f"  Borrados {len(jes)} journal_entries")
 
     # 5. Purchase payments
     for p in payments:
         db.delete(p)
-        print(f"  Borrado PurchasePayment id={p.id}")
+    db.flush()
+    print(f"  Borradas {len(payments)} purchase_payments")
 
-    # 6. Purchase items
+    # 6. Purchase items (MUST flush before deleting purchase)
     for it in items:
         db.delete(it)
-        print(f"  Borrado PurchaseItem id={it.id}")
+    db.flush()
+    print(f"  Borrados {len(items)} purchase_items")
 
     # 7. Purchase
     db.execute(text("DELETE FROM purchases WHERE id = :id"), {"id": purchase_id})
